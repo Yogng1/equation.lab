@@ -3554,8 +3554,11 @@ exploreLoop();
           <span class="math">(x+1)(x−1)(x−3) = 0</span> 이므로,<br>
           <span class="math">x+1=0</span> 또는 <span class="math">x−1=0</span> 또는 <span class="math">x−3=0</span><br>
           ⇒ <strong style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;color:#ffeb3b;">x = <input class="eqa-input" id="s5q7-in1" maxlength="3" style="width:48px;text-align:center;"> 또는 x = <input class="eqa-input" id="s5q7-in2" maxlength="3" style="width:48px;text-align:center;"> 또는 x = <input class="eqa-input" id="s5q7-in3" maxlength="3" style="width:48px;text-align:center;"></strong><br>
-          <span style="font-size:14px;color:#ffcf7a;">네모에 알맞은 수를 채우세요!</span>&nbsp;
-          <button class="fq-check-btn" onclick="s5Q7Check()">확인</button>`,
+          <div style="position:relative;display:flex;align-items:center;gap:10px;min-height:44px;margin-top:4px;">
+            <span style="font-size:18px;color:#ffcf7a;">네모에 알맞은 수를 채우세요!</span>
+            <button class="fq-check-btn" onclick="s5Q7Check()">확인</button>
+            <button class="eqa-answer-btn" onclick="s5Q7ShowAnswer()" style="position:absolute;right:0;margin-left:0;">정답보기</button>
+          </div>`,
       gate: true,
       choices: ['다음으로!'],
       correct: 0,
@@ -3661,9 +3664,10 @@ exploreLoop();
               x = <input class="eqa-input" id="s5sum-in1" maxlength="3" style="width:52px;">
               &nbsp;또는&nbsp; x = <input class="eqa-input" id="s5sum-in2" maxlength="3" style="width:52px;">
               &nbsp;또는&nbsp; x = <input class="eqa-input" id="s5sum-in3" maxlength="3" style="width:52px;">
-              <div style="margin-top:10px;">
-                <span style="font-size:13px;color:#ffcf7a;font-family:'Jua',sans-serif;">네모에 알맞은 수를 채우세요!</span>&nbsp;
-                <button class="fq-check-btn" onclick="s5SumCheck()">확인</button>
+              <div style="position:relative;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;">
+                <span style="font-size:18px;color:#ffcf7a;font-family:'Jua',sans-serif;">네모에 알맞은 수를 채우세요!</span>
+                <button class="fq-check-btn" onclick="s5SumCheck()" style="font-size:17px;padding:6px 20px;">확인</button>
+                <button class="eqa-answer-btn" onclick="s5SumShowAnswer()" style="position:absolute;right:0;margin-left:0;">정답보기</button>
               </div>
             </div>
           </div>` : ''}
@@ -3949,6 +3953,12 @@ exploreLoop();
     }
   };
 
+  window.s5SumShowAnswer = function() {
+    const ins = ['s5sum-in1','s5sum-in2','s5sum-in3'].map(id => document.getElementById(id));
+    if (ins.some(el => !el)) return;
+    ins[0].value = '-1'; ins[1].value = '1'; ins[2].value = '3';
+    s5SumCheck();
+  };
   window.s5SumCheck = function() {
     const ins = ['s5sum-in1','s5sum-in2','s5sum-in3'].map(id => document.getElementById(id));
     if (ins.some(el => !el)) return;
@@ -3971,6 +3981,12 @@ exploreLoop();
     }
   };
 
+  window.s5Q7ShowAnswer = function() {
+    const ins = ['s5q7-in1','s5q7-in2','s5q7-in3'].map(id => document.getElementById(id));
+    if (ins.some(el => !el)) return;
+    ins[0].value = '-1'; ins[1].value = '1'; ins[2].value = '3';
+    s5Q7Check();
+  };
   window.s5Q7Check = function() {
     const ins = ['s5q7-in1','s5q7-in2','s5q7-in3'].map(id => document.getElementById(id));
     if (ins.some(el => !el)) return;
