@@ -1,0 +1,4790 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Stage 5 — 삼차방정식</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@600;700&family=Jua&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; overflow:hidden; font-family:'Outfit',sans-serif; user-select:none; }
+canvas { display:block; }
+
+/* ── HUD ── */
+#hud {
+  position:fixed; top:0; left:0; right:0;
+  padding:16px 24px;
+  display:flex; align-items:center; gap:24px;
+  background:linear-gradient(180deg,rgba(0,0,0,0.9),transparent);
+  pointer-events:none; z-index:20;
+}
+.hud-block { display:flex; flex-direction:column; gap:5px; }
+.hud-label {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:3px; color:#888;
+}
+.bar-wrap {
+  width:180px; height:16px;
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.15);
+  position:relative; overflow:hidden;
+}
+.bar-fill { height:100%; transition:width 0.3s; position:relative; }
+.bar-fill::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent);
+  animation:sheen 2s infinite;
+}
+@keyframes sheen { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
+#player-hp-bar { background:linear-gradient(90deg,#ff3860,#ff6b8a); width:100%; }
+#boss-hp-bar   { background:linear-gradient(90deg,#7fff00,#ffb41e); width:100%; }
+#skill-bar     { background:linear-gradient(90deg,#ffcc44,#ffb41e); width:0%; }
+.hud-val {
+  font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700;
+  color:#fff; position:absolute; right:8px; top:50%; transform:translateY(-50%);
+}
+#controls-hint {
+  position:fixed; bottom:0; left:0; right:0; height:80px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Orbitron',sans-serif; font-size:18px; letter-spacing:3px;
+  color:rgba(255,255,255,0.9); pointer-events:none; z-index:20; white-space:nowrap;
+}
+
+.back-to-main {
+  position:fixed; top:16px; right:16px; z-index:25;
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:2px; padding:8px 16px;
+  background:rgba(0,0,0,0.4); border:2px solid rgba(0,240,255,0.5);
+  color:#ffb41e; text-decoration:none; cursor:pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.back-to-main:hover { background:#ffb41e; color:#150c00; }
+
+/* ── 팝업 공통 ── */
+.popup-overlay {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.82); backdrop-filter:blur(8px);
+  display:flex; align-items:center; justify-content:center;
+  z-index:50; opacity:0; visibility:hidden; pointer-events:none; transition:opacity 0.3s, visibility 0s 0.3s;
+}
+.popup-overlay.open { opacity:1; visibility:visible; pointer-events:all; transition:opacity 0.3s; }
+.popup {
+  background:#150c00;
+  border:3px solid var(--popup-color,#ffb41e);
+  box-shadow:0 0 60px var(--popup-glow,rgba(255,180,30,0.3)), 6px 6px 0 rgba(0,0,0,0.5);
+  width:min(600px,93vw); max-height:90vh; overflow-y:auto;
+  transform:scale(0.85); transition:transform 0.3s cubic-bezier(.2,.9,.3,1.1);
+}
+.popup-overlay.open .popup { transform:scale(1); }
+.popup-header {
+  padding:22px 28px 18px;
+  border-bottom:2px solid rgba(255,255,255,0.08);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.popup-badge {
+  font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:4px; padding:5px 12px; margin-bottom:10px;
+  display:inline-block; text-transform:uppercase;
+}
+.popup-title {
+  font-family:'Orbitron',sans-serif; font-weight:900;
+  font-size:clamp(18px,4vw,26px); letter-spacing:2px; color:#fff;
+}
+.popup-close {
+  background:transparent; border:2px solid rgba(255,255,255,0.2);
+  color:rgba(255,255,255,0.95); width:40px; height:40px;
+  font-size:18px; cursor:pointer; transition:all 0.2s;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'JetBrains Mono',monospace; flex-shrink:0;
+}
+.popup-close:hover { border-color:#ffb41e; color:#ffb41e; }
+.popup-body { padding:28px; }
+
+/* 튜토리얼 팝업 */
+#tutorial-popup { --popup-color:#ffcc44; --popup-glow:rgba(255,180,30,0.3); }
+
+.tut-section {
+  margin-bottom:22px;
+}
+.tut-section-title {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:3px; color:#ffcc44; margin-bottom:12px; text-transform:uppercase;
+}
+.key-row {
+  display:flex; align-items:center; gap:12px; margin-bottom:10px;
+  font-size:15px; color:#b8b8d4; line-height:1.5;
+}
+.key-badge {
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px;
+  background:rgba(0,0,0,0.5); border:2px solid rgba(255,255,255,0.25);
+  color:#fff; padding:4px 10px; border-radius:4px;
+  box-shadow:0 3px 0 rgba(0,0,0,0.5); white-space:nowrap; flex-shrink:0;
+}
+.key-badge.cyan   { border-color:#ffb41e; color:#ffb41e; box-shadow:0 3px 0 rgba(255,180,30,0.3); }
+.key-badge.yellow { border-color:#ffeb3b; color:#ffeb3b; box-shadow:0 3px 0 rgba(255,235,59,0.3); }
+.key-badge.purple { border-color:#ffcc44; color:#ffcc44; box-shadow:0 3px 0 rgba(255,180,30,0.3); }
+.key-badge.red    { border-color:#ff3860; color:#ff3860; box-shadow:0 3px 0 rgba(255,56,96,0.3); }
+
+/* 연습 문제 영역 */
+.tut-practice {
+  background:rgba(0,0,0,0.4); border:2px solid #ffcc44;
+  padding:18px 20px; margin-top:4px;
+  box-shadow:0 0 16px rgba(255,180,30,0.15);
+}
+.tut-practice-label {
+  font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:3px; color:#ffcc44; margin-bottom:14px; text-transform:uppercase;
+}
+.tut-q {
+  font-family:'JetBrains Mono',monospace; font-weight:700;
+  font-size:clamp(18px,3.5vw,24px); color:#fff; text-align:center; margin-bottom:14px;
+}
+.tut-answer-row {
+  display:flex; align-items:center; justify-content:center;
+  gap:8px; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(16px,3vw,20px); color:#fff; flex-wrap:wrap; margin-bottom:14px;
+}
+.tut-blank {
+  background:rgba(0,0,0,0.6); border:2px solid #ffcc44;
+  color:#ffcc44; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(15px,3vw,20px); font-weight:700;
+  width:64px; padding:6px; text-align:center; outline:none;
+  transition:border-color 0.2s, box-shadow 0.2s;
+  -moz-appearance:textfield;
+}
+.tut-blank::-webkit-outer-spin-button,
+.tut-blank::-webkit-inner-spin-button { -webkit-appearance:none; }
+.tut-blank:focus { border-color:#ffeb3b; box-shadow:0 0 12px rgba(255,235,59,0.4); }
+.tut-blank.ok { border-color:#7fff00 !important; color:#7fff00 !important; box-shadow:0 0 14px rgba(127,255,0,0.5) !important; }
+.tut-blank.ng { border-color:#ff3860 !important; color:#ff3860 !important; animation:shake 0.3s; }
+.tut-hint { font-size:13px; color:#888; text-align:center; margin-bottom:10px; }
+.tut-check-btn {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:2px; padding:10px 24px; border:none; cursor:pointer;
+  background:#ffcc44; color:#150c00;
+  box-shadow:3px 3px 0 #ffb41e; transition:transform 0.15s;
+  text-transform:uppercase; display:block; margin:0 auto;
+}
+.tut-check-btn:hover { transform:translate(-2px,-2px); }
+.tut-fb { font-size:14px; font-weight:600; text-align:center; margin-top:10px; min-height:20px; }
+.tut-fb.ok { color:#7fff00; }
+.tut-fb.ng { color:#ff6b8a; }
+.tut-start-btn {
+  font-family:'Orbitron',sans-serif; font-size:13px; font-weight:700;
+  letter-spacing:3px; padding:14px 36px; border:none; cursor:pointer;
+  background:linear-gradient(135deg,#ffcc44,#ffb41e); color:#fff;
+  box-shadow:4px 4px 0 rgba(0,0,0,0.4); transition:transform 0.15s;
+  text-transform:uppercase; display:block; margin:24px auto 0;
+  opacity:0.4; pointer-events:none;
+  transition:opacity 0.4s, transform 0.15s;
+}
+.tut-start-btn.unlocked {
+  opacity:1; pointer-events:all;
+  box-shadow:4px 4px 0 rgba(0,0,0,0.4), 0 0 20px rgba(255,180,30,0.4);
+}
+.tut-start-btn.unlocked:hover { transform:translate(-2px,-2px); }
+.formula-box {
+  background:rgba(20,10,0,0.6); border:2px solid #ffb41e;
+  padding:24px; text-align:center; margin-bottom:18px;
+  box-shadow:0 0 20px rgba(255,180,30,0.18);
+}
+.formula-text {
+  font-family:'JetBrains Mono',monospace; font-weight:700;
+  font-size:clamp(16px,3.5vw,22px); color:#fff; line-height:1.9;
+}
+.formula-highlight { color:#ffeb3b; }
+.explain-item {
+  display:flex; gap:14px; padding:14px 18px;
+  background:rgba(0,0,0,0.3); border-left:3px solid #ffb41e;
+  margin-bottom:10px; font-size:15px; color:#b8b8d4; line-height:1.65;
+}
+.explain-item strong { color:#fff; display:block; margin-bottom:3px; }
+
+/* 예제 팝업 */
+#example-popup { --popup-color:#ffeb3b; --popup-glow:rgba(255,235,59,0.3); }
+.step-box {
+  padding:16px 20px; margin-bottom:12px;
+  background:rgba(0,0,0,0.35); border-left:4px solid #ffeb3b;
+}
+.step-num {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:3px; color:#ffeb3b; margin-bottom:8px;
+}
+.step-content {
+  font-family:'JetBrains Mono',monospace; font-size:16px;
+  color:#fff; line-height:1.85;
+}
+.step-note { font-family:'Outfit',sans-serif; font-size:14px; color:#b8b8d4; margin-top:5px; }
+
+/* 팝업 공통 버튼 */
+.popup-btn {
+  font-family:'Orbitron',sans-serif; font-size:12px; font-weight:700;
+  letter-spacing:2px; padding:12px 28px; border:none; cursor:pointer;
+  transition:transform 0.15s, box-shadow 0.15s; text-transform:uppercase;
+}
+.popup-btn:hover { transform:translate(-2px,-2px); }
+
+/* ── 보스 씬 (전체화면) ── */
+#boss-scene {
+  position:fixed; inset:0; z-index:60;
+  display:none; flex-direction:column;
+  background:#030612;
+}
+#boss-scene.active { display:flex; }
+
+/* canvas가 패널 위 영역만 차지 — absolute 제거, flex:1로 */
+#boss-canvas { display:block; width:100%; flex:1; min-height:0; }
+
+/* 보스씬 HUD */
+#boss-hud-bar {
+  position:absolute; top:0; left:0; right:0;
+  padding:16px 24px;
+  display:flex; align-items:center; gap:20px;
+  background:linear-gradient(180deg,rgba(0,0,0,0.95),transparent);
+  z-index:10; pointer-events:none;
+}
+.bhp-block { display:flex; flex-direction:column; gap:5px; flex:1; max-width:260px; }
+.bhp-label {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:3px;
+}
+.bhp-bar-wrap {
+  height:18px; background:rgba(255,255,255,0.08);
+  border:2px solid rgba(255,255,255,0.15); position:relative; overflow:hidden;
+}
+.bhp-fill { height:100%; transition:width 0.35s; }
+#b-player-fill { background:linear-gradient(90deg,#ff3860,#ff6b8a); width:100%; }
+#b-boss-fill   { background:linear-gradient(90deg,#7fff00,#ffb41e); width:100%; }
+.bhp-val {
+  font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700;
+  color:#fff; position:absolute; right:8px; top:50%; transform:translateY(-50%);
+}
+/* 문제 패널 — flex 마지막 자식, 캔버스 아래에 위치 */
+#boss-quiz-panel {
+  flex-shrink:0;
+  height:260px;
+  background:rgba(5,5,20,0.97);
+  border-top:3px solid #ff3860;
+  box-shadow:0 -10px 40px rgba(255,56,96,0.25);
+  padding:20px 20px;
+  z-index:10;
+  pointer-events:all;
+  overflow-y:auto; overflow-x:hidden;
+  box-sizing:border-box;
+}
+.eqa5-drop {
+  transition: border-color 0.2s, background 0.2s;
+  vertical-align: middle;
+}
+  flex:1; padding:8px 6px; border-radius:8px;
+  font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:700;
+  border:1.5px solid rgba(52,211,153,0.3); background:rgba(52,211,153,0.06);
+  color:#e0e0f0; cursor:pointer; text-align:center; transition:all 0.15s;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;
+}
+.bq-choice:hover { background:rgba(52,211,153,0.15); border-color:rgba(52,211,153,0.6); }
+.bq-choice.selected-quot { background:rgba(52,211,153,0.25); border-color:#34d399; color:#34d399; }
+.bq-choice.selected-rem  { background:rgba(255,180,30,0.25); border-color:#ffcc44; color:#ffcc44; }
+#bq-question {
+  font-family:'JetBrains Mono',monospace; font-weight:700;
+  font-size:clamp(20px,3.5vw,30px); color:#fff; text-align:center; margin-bottom:8px;
+}
+#bq-sub { display:none; }
+#bq-answer-row {
+  display:flex; align-items:center; justify-content:center;
+  gap:8px; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(16px,3vw,22px); color:#fff; flex-wrap:wrap; margin-bottom:14px;
+}
+.bblank {
+  background:rgba(0,0,0,0.7); border:2px solid #ff3860;
+  color:#ff6b8a; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(16px,3vw,22px); font-weight:700;
+  width:70px; padding:7px; text-align:center; outline:none;
+  transition:border-color 0.2s, box-shadow 0.2s;
+  -moz-appearance:textfield;
+}
+.bsign {
+  font-family:'JetBrains Mono',monospace;
+  font-size:clamp(18px,3vw,24px); font-weight:900;
+  margin:0 2px;
+}
+.bsign.plus  { color:#7fff00; text-shadow:0 0 6px rgba(127,255,0,0.6); }
+.bsign.minus { color:#ffb41e; text-shadow:0 0 6px rgba(0,240,255,0.6); }
+.bblank::-webkit-outer-spin-button,
+.bblank::-webkit-inner-spin-button { -webkit-appearance:none; }
+.bblank:focus { border-color:#ffeb3b; box-shadow:0 0 12px rgba(255,235,59,0.4); }
+.bblank.ok { border-color:#7fff00 !important; color:#7fff00 !important; box-shadow:0 0 14px rgba(127,255,0,0.5) !important; }
+.bblank.ng { border-color:#ff3860 !important; color:#ff3860 !important; animation:shake 0.3s; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+#bq-btn-row { display:flex; gap:10px; justify-content:center; }
+.bq-btn {
+  font-family:'Orbitron',sans-serif; font-size:12px; font-weight:700;
+  letter-spacing:2px; padding:11px 26px; border:none; cursor:pointer;
+  transition:transform 0.15s, box-shadow 0.15s; text-transform:uppercase;
+}
+.bq-attack { background:#ff3860; color:#fff; box-shadow:3px 3px 0 #7fff00; }
+.bq-attack:hover { transform:translate(-2px,-2px); box-shadow:5px 5px 0 #7fff00; }
+#bq-feedback {
+  font-size:14px; font-weight:600; text-align:center; margin-top:10px;
+  min-height:20px; transition:opacity 0.3s;
+}
+#bq-feedback.ok { color:#7fff00; }
+#bq-feedback.ng { color:#ff6b8a; }
+
+/* 패널 스킬 버튼 */
+.bq-skill-panel {
+  background: rgba(255,180,30,0.08);
+  border: 2px solid rgba(255,180,30,0.25) !important;
+  color: rgba(255,180,30,0.35) !important;
+  box-shadow: none !important;
+  cursor: not-allowed;
+  position: relative;
+  display: flex; align-items: center; gap: 8px;
+  transition: all 0.25s !important;
+}
+.bq-skill-panel.ready {
+  background: rgba(255,180,30,0.22) !important;
+  border: 2px solid #ffcc44 !important;
+  color: #fff !important;
+  cursor: pointer;
+  box-shadow: 0 0 24px rgba(255,180,30,0.6), 3px 3px 0 #ffb41e,
+              inset 0 0 14px rgba(255,180,30,0.15) !important;
+  animation: panelSkillPulse 0.85s infinite;
+}
+@keyframes panelSkillPulse {
+  0%,100% { box-shadow: 0 0 24px rgba(255,180,30,0.6), 3px 3px 0 #ffb41e; transform: scale(1); }
+  50%     { box-shadow: 0 0 44px rgba(255,180,30,1),   3px 3px 0 #ffb41e, 0 0 70px rgba(255,180,30,0.5); transform: scale(1.05); }
+}
+
+/* Q 뱃지 */
+/* ── 튜토리얼 팝업 ── */
+#tutorial-overlay {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.88); backdrop-filter:blur(10px);
+  display:none; align-items:center; justify-content:center;
+  z-index:200;
+  transition:opacity 0.3s;
+}
+
+#tutorial-box {
+  background:#150c00;
+  border:3px solid #ffcc44;
+  box-shadow:0 0 60px rgba(255,180,30,0.35), 6px 6px 0 rgba(0,0,0,0.5);
+  width:min(460px,92vw); max-height:90vh; overflow-y:auto;
+  transform:scale(1); transition:transform 0.3s cubic-bezier(.2,.9,.3,1.1);
+}
+
+.tut-header {
+  padding:20px 26px 16px;
+  border-bottom:2px solid rgba(255,255,255,0.07);
+}
+.tut-badge {
+  font-family:'Orbitron',sans-serif; font-size:9px; font-weight:700;
+  letter-spacing:4px; color:#000; background:#ffcc44;
+  display:inline-block; padding:4px 12px; margin-bottom:10px;
+  box-shadow:2px 2px 0 #ffb41e; text-transform:uppercase;
+}
+.tut-title {
+  font-family:'Orbitron',sans-serif; font-weight:900;
+  font-size:clamp(18px,4vw,24px); letter-spacing:2px; color:#fff;
+}
+.tut-body { padding:22px 26px 26px; }
+
+/* 조작 섹션 */
+.tut-section { margin-bottom:20px; }
+.tut-section-label {
+  font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:3px; color:#ffcc44; margin-bottom:10px; text-transform:uppercase;
+}
+.tut-row {
+  display:flex; align-items:center; gap:10px;
+  padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05);
+  font-size:14px; color:#b8b8d4;
+}
+.tut-row:last-child { border-bottom:none; }
+.kbd {
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:12px;
+  background:rgba(0,0,0,0.5); border:2px solid rgba(255,255,255,0.2);
+  color:#fff; padding:3px 10px; border-radius:4px;
+  box-shadow:0 3px 0 rgba(0,0,0,0.6); white-space:nowrap; flex-shrink:0;
+}
+.kbd.c { border-color:#ffb41e; color:#ffb41e; }
+.kbd.y { border-color:#ffeb3b; color:#ffeb3b; }
+.kbd.p { border-color:#ffcc44; color:#ffcc44; }
+.kbd.r { border-color:#ff3860; color:#ff3860; }
+
+/* 연습 박스 */
+.tut-practice {
+  background:rgba(0,0,0,0.4); border:2px solid #ffcc44;
+  padding:16px 18px; margin-top:4px;
+  box-shadow:0 0 16px rgba(255,180,30,0.12);
+}
+.tut-practice-label {
+  font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:3px; color:#ffcc44; margin-bottom:12px; text-transform:uppercase;
+}
+.tut-q {
+  font-family:'JetBrains Mono',monospace; font-weight:700;
+  font-size:clamp(16px,3.5vw,22px); color:#fff; text-align:center; margin-bottom:8px;
+}
+.tut-hint-text { font-size:12px; color:#666; text-align:center; margin-bottom:12px; letter-spacing:1px; }
+.tut-ans-row {
+  display:flex; align-items:center; justify-content:center;
+  gap:6px; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(15px,3vw,20px); color:#fff; flex-wrap:wrap; margin-bottom:14px;
+}
+.tut-blank {
+  background:rgba(0,0,0,0.6); border:2px solid #ffcc44;
+  color:#ffcc44; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(15px,3vw,20px); font-weight:700;
+  width:62px; padding:6px; text-align:center; outline:none;
+  transition:border-color 0.2s, box-shadow 0.2s;
+  -moz-appearance:textfield;
+}
+.tut-blank::-webkit-outer-spin-button,
+.tut-blank::-webkit-inner-spin-button { -webkit-appearance:none; }
+.tut-blank:focus { border-color:#ffeb3b; box-shadow:0 0 10px rgba(255,235,59,0.4); }
+.tut-blank.ok { border-color:#7fff00 !important; color:#7fff00 !important; box-shadow:0 0 12px rgba(127,255,0,0.5) !important; }
+.tut-blank.ng { border-color:#ff3860 !important; color:#ff3860 !important; animation:shake 0.3s; }
+.tut-check-btn {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:2px; padding:10px 24px; border:none; cursor:pointer;
+  background:#ffcc44; color:#150c00; box-shadow:3px 3px 0 #ffb41e;
+  transition:transform 0.15s; text-transform:uppercase; display:block; margin:0 auto;
+}
+.tut-check-btn:hover { transform:translate(-2px,-2px); }
+.tut-fb { font-size:14px; font-weight:600; text-align:center; margin-top:10px; min-height:18px; }
+.tut-fb.ok { color:#7fff00; }
+.tut-fb.ng { color:#ff6b8a; }
+
+/* 입장 버튼 */
+#tut-enter-btn {
+  font-family:'Orbitron',sans-serif; font-size:13px; font-weight:700;
+  letter-spacing:3px; padding:14px 40px; border:none; cursor:pointer;
+  background:linear-gradient(135deg,#ffcc44,#ffb41e); color:#fff;
+  box-shadow:4px 4px 0 rgba(0,0,0,0.4); text-transform:uppercase;
+  display:block; margin:22px auto 0;
+  opacity:0.35; pointer-events:none;
+  transition:opacity 0.4s, transform 0.15s, box-shadow 0.15s;
+}
+#tut-enter-btn.on {
+  opacity:1; pointer-events:all;
+  box-shadow:4px 4px 0 rgba(0,0,0,0.4), 0 0 24px rgba(255,180,30,0.5);
+  animation:enterPulse 1.2s infinite;
+}
+#tut-enter-btn.on:hover { transform:translate(-2px,-2px); }
+@keyframes enterPulse {
+  0%,100%{ box-shadow:4px 4px 0 rgba(0,0,0,0.4), 0 0 20px rgba(255,180,30,0.4); }
+  50%    { box-shadow:4px 4px 0 rgba(0,0,0,0.4), 0 0 40px rgba(255,180,30,0.8), 0 0 60px rgba(255,180,30,0.3); }
+}
+#boss-intro {
+  position:fixed; inset:0; background:rgba(0,0,0,0.96);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  z-index:80; opacity:0; visibility:hidden; pointer-events:none; transition:opacity 0.5s, visibility 0s 0.5s;
+}
+#boss-intro.show { opacity:1; visibility:visible; pointer-events:all; transition:opacity 0.5s; }
+.boss-intro-sprite { font-size:90px; animation:bossFloat 1.8s ease-in-out infinite; }
+@keyframes bossFloat { 0%,100%{transform:translateY(0) scale(1);} 50%{transform:translateY(-14px) scale(1.06);} }
+.boss-intro-name {
+  font-family:'Orbitron',sans-serif; font-weight:900;
+  font-size:clamp(26px,5.5vw,44px); letter-spacing:4px;
+  color:#ff3860; text-shadow:0 0 30px rgba(255,56,96,0.8);
+  margin:20px 0 10px; animation:flickerIn 0.5s 0.5s both;
+}
+.boss-intro-sub {
+  font-family:'Orbitron',sans-serif; font-size:13px; letter-spacing:4px;
+  color:rgba(255,255,255,0.4); animation:flickerIn 0.5s 0.9s both;
+}
+@keyframes flickerIn {
+  0%{opacity:0;} 50%{opacity:1;} 60%{opacity:0;} 80%{opacity:1;} 100%{opacity:1;}
+}
+
+/* 결과 */
+#result-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.92);
+  backdrop-filter:blur(12px);
+  display:flex; align-items:center; justify-content:center;
+  z-index:100; opacity:0; visibility:hidden; pointer-events:none; transition:opacity 0.5s, visibility 0s 0.5s;
+}
+#result-overlay.show { opacity:1; visibility:visible; pointer-events:all; transition:opacity 0.5s; }
+.result-box {
+  text-align:center; padding:44px 36px;
+  border:3px solid var(--res-color,#7fff00);
+  box-shadow:0 0 60px var(--res-glow,rgba(127,255,0,0.3));
+  background:#150c00; width:min(500px,90vw);
+}
+.result-title {
+  font-family:'Orbitron',sans-serif; font-weight:900;
+  font-size:clamp(30px,7vw,52px); letter-spacing:3px;
+  color:var(--res-color,#7fff00);
+  text-shadow:0 0 24px var(--res-glow,rgba(127,255,0,0.5));
+  margin-bottom:14px;
+}
+.result-sub { font-size:16px; color:#b8b8d4; margin-bottom:30px; line-height:1.6; }
+.result-btn {
+  font-family:'Orbitron',sans-serif; font-size:13px; font-weight:700;
+  letter-spacing:3px; padding:14px 32px; border:none; cursor:pointer;
+  background:var(--res-color,#7fff00); color:#150c00;
+  box-shadow:4px 4px 0 rgba(0,0,0,0.4);
+  transition:transform 0.15s; text-transform:uppercase;
+}
+.result-btn:hover { transform:translate(-2px,-2px); }
+
+/* 엔딩: 마왕과의 마지막 대화 */
+#post-boss-dlg {
+  position:fixed; inset:0; z-index:300; display:none;
+  background:rgba(5,3,10,0.55); cursor:pointer;
+}
+#post-boss-dlg.show { display:block; }
+.pbd-box {
+  position:absolute; width:min(747px,61vw); padding:35px 40px; border-radius:21px;
+  background:rgba(12,7,20,0.9); backdrop-filter:blur(4px);
+  opacity:0; transform:translateY(14px); transition:opacity 0.3s, transform 0.3s;
+}
+.pbd-box.show { opacity:1; transform:translateY(0); }
+#pbd-demon { top:10%; left:5%; border:2px solid rgba(168,85,247,0.55); box-shadow:0 0 34px rgba(168,85,247,0.28); }
+#pbd-player { bottom:10%; right:5%; border:2px solid rgba(255,204,68,0.5); box-shadow:0 0 34px rgba(255,204,68,0.22); }
+.pbd-name { font-family:'Orbitron',sans-serif; font-weight:700; font-size:19px; letter-spacing:3px; margin-bottom:13px; text-transform:uppercase; }
+#pbd-demon .pbd-name { color:#c084fc; }
+#pbd-player .pbd-name { color:#ffcc44; }
+.pbd-text { font-family:'Jua',sans-serif; font-size:29px; line-height:1.75; color:#f7f4ff; min-height:3em; }
+.pbd-inner { display:flex; align-items:flex-start; gap:20px; }
+.pbd-portrait-frame {
+  width:120px; height:120px; border-radius:50%; overflow:hidden; flex-shrink:0;
+  background:rgba(255,255,255,0.08);
+}
+#pbd-demon-frame { border:2px solid rgba(168,85,247,0.65); box-shadow:0 0 16px rgba(168,85,247,0.4); }
+#pbd-player-frame { border:2px solid rgba(255,204,68,0.65); box-shadow:0 0 16px rgba(255,204,68,0.4); }
+#pbd-demon-portrait, #pbd-player-portrait {
+  width:100%; height:100%; object-fit:cover;
+  transform-origin:center 15%;
+  transform:scale(1.8);
+}
+.pbd-continue { position:absolute; bottom:16px; right:24px; font-family:'Outfit',sans-serif; font-size:16px; color:rgba(255,255,255,0.55); letter-spacing:1px; animation:pbdBlink 1.3s ease-in-out infinite; }
+@keyframes pbdBlink { 0%,100%{opacity:0.35;} 50%{opacity:1;} }
+@media (max-width:640px) {
+  #pbd-demon { left:4%; width:90vw; }
+  #pbd-player { right:4%; width:90vw; }
+  .pbd-box { padding:19px 17px; }
+  .pbd-text { font-size:17px; }
+  .pbd-name { font-size:12px; margin-bottom:8px; }
+  #pbd-demon-frame, #pbd-player-frame { width:56px; height:56px; }
+  .pbd-inner { gap:12px; }
+}
+
+/* 졸업 화면 */
+/* 아웃트로 화면 */
+#outro-screen {
+  position:fixed; inset:0; z-index:390; display:none;
+  align-items:center; justify-content:center; cursor:pointer;
+  background:radial-gradient(ellipse at center, rgba(20,10,30,0.94) 0%, rgba(5,3,8,0.99) 100%);
+  padding:0 24px;
+}
+#outro-screen.show { display:flex; }
+.outro-text {
+  font-family:'Jua',sans-serif; color:#f1eefc; text-align:center;
+  font-size:clamp(20px,3.2vw,30px); line-height:2.1;
+  max-width:780px;
+  text-shadow:0 0 18px rgba(168,85,247,0.3);
+  opacity:0; transform:translateY(10px);
+  transition:opacity 0.7s, transform 0.7s;
+}
+.outro-text.show { opacity:1; transform:translateY(0); }
+.outro-continue {
+  position:fixed; bottom:8%; left:50%; transform:translateX(-50%);
+  font-family:'Outfit',sans-serif; font-size:13px; letter-spacing:2px;
+  color:rgba(255,255,255,0.55);
+  animation:pbdBlink 1.3s ease-in-out infinite;
+  opacity:0; transition:opacity 0.5s;
+}
+.outro-continue.show { opacity:1; }
+
+#grad-screen {
+  position:fixed; inset:0; z-index:400; display:none;
+  align-items:center; justify-content:center;
+  background:radial-gradient(ellipse at center, rgba(20,10,30,0.92) 0%, rgba(5,3,8,0.98) 100%);
+}
+#grad-screen.show { display:flex; }
+.grad-box {
+  position:relative; text-align:center; padding:54px 44px; border-radius:20px;
+  border:2px solid rgba(255,204,68,0.5);
+  box-shadow:0 0 60px rgba(168,85,247,0.35), 0 12px 40px rgba(0,0,0,0.5);
+  background:rgba(14,8,22,0.88); width:min(640px,90vw);
+}
+.grad-box::before {
+  content:''; position:absolute; inset:-2px; border-radius:20px; z-index:-1;
+  background:conic-gradient(from 0deg, #ffcc44, #a855f7, #00f0ff, #ffcc44);
+  opacity:0.3; filter:blur(6px);
+}
+.grad-title {
+  font-family:'Orbitron',sans-serif; font-weight:900; font-size:clamp(24px,4.5vw,40px);
+  letter-spacing:5px; color:#ffe9b0;
+  text-shadow:0 0 20px rgba(255,204,68,0.5), 0 0 40px rgba(168,85,247,0.4);
+  margin-bottom:20px;
+}
+.grad-sub {
+  font-family:'Jua',sans-serif; font-size:18px; color:#f1eefc; line-height:1.8; margin-bottom:38px;
+}
+.grad-btn-row { display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }
+.grad-btn {
+  font-family:'Orbitron',sans-serif; font-weight:700; font-size:13px; letter-spacing:2px;
+  padding:14px 30px; border-radius:8px; cursor:pointer; text-transform:uppercase;
+  transition:transform 0.15s;
+}
+.grad-btn:hover { transform:translateY(-2px); }
+.grad-btn-primary { background:#ffcc44; color:#150c00; border:none; box-shadow:3px 3px 0 rgba(0,0,0,0.4); }
+.grad-btn-secondary { background:transparent; color:#ffcc44; border:2px solid #ffcc44; }
+
+/* NPC 말풍선 */
+#npc-bubble {
+  position:fixed; top:80px; left:50%; transform:translateX(-50%);
+  background:rgba(0,10,30,0.96); border:2px solid #ffb41e;
+  box-shadow:0 0 20px rgba(255,180,30,0.3), 4px 4px 0 rgba(0,0,0,0.5);
+  padding:16px 22px; width:min(500px,88vw);
+  font-size:15px; color:#e0e0f0; line-height:1.7;
+  z-index:30; display:none;
+  animation:npcDropIn 0.4s cubic-bezier(.2,.9,.3,1.1) both;
+}
+@keyframes npcDropIn {
+  from { opacity:0; transform:translateX(-50%) translateY(-16px); }
+  to   { opacity:1; transform:translateX(-50%) translateY(0); }
+}
+#npc-bubble::before {
+  content:'NPC';
+  font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:3px; color:#ffb41e; display:block; margin-bottom:7px;
+}
+#npc-bubble .close-bubble {
+  position:absolute; top:10px; right:12px;
+  font-size:14px; color:rgba(255,255,255,0.3); cursor:pointer;
+  background:none; border:none;
+}
+#npc-bubble .close-bubble:hover { color:#ffb41e; }
+
+/* ── 스테이지 팝업 테마 ── */
+.popup { background:rgba(25,5,10,0.85) !important; border-color:#cc7799 !important; box-shadow:0 0 60px rgba(200,100,140,0.3),6px 6px 0 rgba(0,0,0,0.5) !important; }
+.popup-badge { background:#aa3366 !important; color:#1a0008 !important; }
+.popup-title { color:#cc7799 !important; }
+.fqa-bubble { background:rgba(200,100,140,0.08) !important; border-color:rgba(200,100,140,0.5) !important; }
+.fqa-bubble::before { border-right-color:rgba(200,100,140,0.5) !important; }
+.fqa-bubble-name { color:#cc7799 !important; }
+.fqa-teacher-label { color:#cc7799 !important; }
+.explain-item { border-left-color:#cc7799 !important; }
+.formula-box { border-color:#cc7799 !important; }
+.step-box { border-left-color:#cc7799 !important; }
+.step-num { color:#cc7799 !important; }
+.fqa-dot.active { background:#cc7799 !important; border-color:#cc7799 !important; }
+.fqa-dot { border-color:#882255 !important; }
+.popup-close:hover { border-color:#cc7799 !important; color:#cc7799 !important; }
+#back-btn { border-color:#cc7799 !important; color:#ffffff; }
+
+.music-toggle {
+  position:fixed; top:16px; right:140px; z-index:500;
+  width:34px; height:34px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:15px; font-family:'Orbitron',sans-serif;
+  background:rgba(0,0,0,0.4); border:2px solid rgba(255,180,30,0.5);
+  color:#ffb41e; cursor:pointer; transition:background 0.2s,color 0.2s,opacity 0.2s;
+}
+.music-toggle:hover { background:#ffb41e; color:#150c00; }
+.music-toggle.muted { opacity:0.4; }
+.music-toggle.in-boss { top:52px; right:16px; }
+
+/* ── 스테이지 클리어 연출: 화면 플래시 + 확산 링 ── */
+#clear-flash {
+  position:fixed; inset:0; background:#fff; opacity:0;
+  pointer-events:none; z-index:150;
+  transition: opacity 0.15s ease-out;
+}
+#clear-flash.show { opacity:0.85; transition: opacity 0.05s ease-out; }
+
+#clear-ring-wrap { position:fixed; inset:0; z-index:149; pointer-events:none; overflow:hidden; }
+.clear-ring {
+  position:absolute; top:50%; left:50%;
+  width:40px; height:40px; margin:-20px 0 0 -20px;
+  border:6px solid #ffb41e; border-radius:50%;
+  opacity:0; box-shadow:0 0 24px rgba(255,180,30,0.85);
+}
+.clear-ring.show { animation: clearRingExpand 0.9s ease-out forwards; }
+@keyframes clearRingExpand {
+  0%   { width:40px; height:40px; margin:-20px 0 0 -20px; opacity:0.9; border-width:6px; }
+  100% { width:1000px; height:1000px; margin:-500px 0 0 -500px; opacity:0; border-width:1px; }
+}
+#stage-label-top {
+  position:fixed; top:14px; left:50%; transform:translateX(-50%);
+  z-index:21; pointer-events:none;
+  font-family:'Orbitron',sans-serif; font-weight:900; letter-spacing:6px;
+  font-size:clamp(16px,3vw,24px); color:#fff;
+  text-shadow: 0 0 14px rgba(255,255,255,0.5);
+  white-space:nowrap;
+}
+</style>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBtx1kzYEH2Z--dSbTz6Eld2g6ZzWGnlYc",
+    authDomain: "equation-lab-teacher.firebaseapp.com",
+    projectId: "equation-lab-teacher",
+    storageBucket: "equation-lab-teacher.firebasestorage.app",
+    messagingSenderId: "498077230441",
+    appId: "1:498077230441:web:bc7e1e067ec81a6e5e89f8"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // 다른(비-module) 스크립트에서 쓸 수 있도록 window에 노출
+  window.fbDb = db;
+  window.fbDoc = doc;
+  window.fbSetDoc = setDoc;
+  window.fbGetDoc = getDoc;
+  window.fbUpdateDoc = updateDoc;
+  window.fbArrayUnion = arrayUnion;
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+</head>
+<body>
+<div id="stage-label-top">STAGE 5</div>
+
+<!-- ══ 튜토리얼 팝업 ══ -->
+<div id="tutorial-overlay">
+  <div id="tutorial-box">
+    <div class="tut-header">
+      <div class="tut-badge">예시 문제</div>
+      <div class="tut-title">풀고 입장하기</div>
+    </div>
+    <div class="tut-body">
+
+      <div class="tut-practice">
+        <div class="tut-practice-label">예시 문제</div>
+        <div class="tut-q">x³ − 3x² − x + 3 = 0 의 해의 개수는?</div>
+        <div class="tut-hint-text">삼차방정식의 해의 개수를 입력하세요 &nbsp;|&nbsp; Enter로 제출</div>
+        <div class="tut-ans-row">
+          <span>해의 개수 =</span>
+          <input class="tut-blank" id="tut-b0" type="number" placeholder="?" autocomplete="off" style="width:80px"/>
+        </div>
+        <button class="tut-check-btn" id="tut-check-btn" onclick="checkTutorial()">확인 →</button>
+        <div class="tut-fb" id="tut-fb"></div>
+      </div>
+
+      <button id="tut-enter-btn" onclick="closeTutorial()">던전 입장 →</button>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ 탐험 씬 HUD ══ -->
+<div id="hud">
+  <div style="font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:2px;color:#ffffff;text-shadow:0 1px 4px rgba(0,0,0,0.8);">
+    삼차방정식 연구소 - 삼차방정식
+  </div>
+</div>
+
+<a class="back-to-main" href="mainpage.html?from=5">← 메인으로</a>
+<button id="music-toggle-btn" class="music-toggle" onclick="toggleMusic()" title="배경음악 켜기/끄기">♪</button>
+<div id="controls-hint">삼차방정식 연구소 - 삼차방정식</div>
+
+<!-- 탐험 캔버스 -->
+<canvas id="canvas"></canvas>
+
+<!-- NPC 말풍선 -->
+<div id="npc-bubble">
+  용사여! 세 개의 포털이 기다리고 있느니라.<br>
+  <strong style="color:#ffb41e;">공식 배우기</strong> → <strong style="color:#ffeb3b;">예제 학습</strong> → <strong style="color:#ff3860;">보스 배틀</strong><br>
+  포털에 가까이 가서 <strong style="color:#ffeb3b;">E 키</strong>를 누르면 진입할 수 있느니라!
+  <button class="close-bubble" onclick="document.getElementById('npc-bubble').style.display='none'">✕</button>
+</div>
+
+
+<!-- ══ 공식 Q&A 팝업 (구 스타일 — 미사용 잔여) ══ -->
+<style>
+.fp-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 680px) { .fp-cols { grid-template-columns: 1fr; } }
+
+.fp-col-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 10px; font-weight: 700; letter-spacing: 3px;
+  display: inline-block; padding: 5px 12px; margin-bottom: 14px;
+  text-transform: uppercase; color: #000;
+}
+.fp-col-label.cyan    { background: #ffb41e; box-shadow: 2px 2px 0 #ffb41e; }
+.fp-col-label.yellow  { background: #ffeb3b; box-shadow: 2px 2px 0 #ffb41e; }
+
+/* 공식 카드 */
+.fp-formula-cards { display: flex; flex-direction: column; gap: 12px; }
+.fp-fcard {
+  background: rgba(0,0,0,0.45);
+  border: 2px solid;
+  padding: 18px 14px; text-align: center;
+}
+.fp-fcard.plus  { border-color: #ffb41e; box-shadow: 0 0 14px rgba(0,240,255,0.2); }
+.fp-fcard.minus { border-color: #ffb41e; box-shadow: 0 0 14px rgba(255,180,30,0.2); }
+.fp-fcard-lbl {
+  font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700;
+  letter-spacing: 3px; margin-bottom: 10px;
+}
+.fp-fcard.plus  .fp-fcard-lbl { color: #ffb41e; }
+.fp-fcard.minus .fp-fcard-lbl { color: #ffb41e; }
+.fp-fcard .katex { color: #fff !important; }
+.fp-fcard .katex * { color: #fff !important; }
+
+/* 증명 영역 */
+.fp-proof-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.35);
+  border-left: 3px solid #ffb41e;
+  font-size: 14px; margin-bottom: 8px;
+  opacity: 0; transform: translateX(-14px);
+  transition: opacity 0.45s, transform 0.45s;
+}
+.fp-proof-row.visible { opacity: 1; transform: translateX(0); }
+.fp-proof-row .katex, .fp-proof-row .katex * { color: #fff !important; }
+.fp-proof-arrow { color: #ffeb3b; font-size: 16px; flex-shrink: 0; }
+
+.fp-proof-toggle {
+  font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; padding: 9px 18px; margin-bottom: 14px;
+  background: transparent; border: 2px solid #ffb41e; color: #ffb41e;
+  cursor: pointer; transition: background 0.2s, color 0.2s; text-transform: uppercase;
+}
+.fp-proof-toggle:hover { background: #ffb41e; color: #150c00; }
+
+/* summary in formula popup */
+.fp-summary {
+  background: rgba(0,0,0,0.4); border: 2px solid #7fff00;
+  padding: 14px 16px; margin-top: 14px;
+  box-shadow: inset 0 0 16px rgba(127,255,0,0.04);
+}
+.fp-sum-item {
+  display: flex; gap: 10px; align-items: center;
+  font-size: 13px; color: #b8b8d4; line-height: 1.6; margin-bottom: 8px;
+}
+.fp-sum-item:last-child { margin-bottom: 0; }
+.fp-sum-dot { width: 7px; height: 7px; background: #7fff00; flex-shrink: 0; box-shadow: 0 0 5px #7fff00; }
+.fp-sum-item strong { color: #7fff00; }
+.fp-sum-item .katex, .fp-sum-item .katex * { color: #fff !important; }
+
+/* 예제 학습 유도 카드 */
+.fp-go-example {
+  background: rgba(255,180,30,0.08);
+  border: 2px solid rgba(255,180,30,0.5);
+  padding: 16px 18px;
+  box-shadow: 0 0 18px rgba(255,180,30,0.12), inset 0 0 16px rgba(255,180,30,0.04);
+}
+.fp-go-inner {
+  display: flex; align-items: flex-start; gap: 14px; margin-bottom: 14px;
+}
+.fp-go-emoji { font-size: 28px; flex-shrink: 0; line-height: 1; }
+.fp-go-title {
+  font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 700;
+  letter-spacing: 2px; color: #ffcc44; margin-bottom: 6px;
+}
+.fp-go-sub { font-size: 13px; color: #b8b8d4; line-height: 1.65; }
+.fp-go-btn {
+  font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; padding: 10px 20px; width: 100%;
+  background: linear-gradient(135deg, #ffcc44, #ffb41e); color: #fff;
+  border: none; cursor: pointer;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.4);
+  transition: transform 0.15s, box-shadow 0.15s; text-transform: uppercase;
+  animation: fpGoPulse 2s infinite;
+}
+@keyframes fpGoPulse {
+  0%,100% { box-shadow: 3px 3px 0 rgba(0,0,0,0.4), 0 0 12px rgba(255,180,30,0.3); }
+  50%     { box-shadow: 3px 3px 0 rgba(0,0,0,0.4), 0 0 24px rgba(255,180,30,0.6); }
+}
+.fp-go-btn:hover { transform: translate(-2px,-2px); }
+</style>
+
+<style>
+/* ══ 공식 Q&A 팝업 ══ */
+#formula-popup .popup {
+  width: min(1200px, 98vw);
+  max-height: 96vh;
+}
+#formula-popup .popup-body {
+  padding: 20px 16px;
+}
+
+.fqa-wrap { display: flex; flex-direction: column; gap: 0; }
+
+/* 전체 레이아웃: 왼쪽 캐릭터 고정 | 오른쪽 말풍선+보기 */
+.fqa-main-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+.fqa-teacher-col {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding-top: 4px;
+}
+.fqa-teacher-img {
+  width: 130px; height: auto;
+}
+.fqa-teacher-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 8px; font-weight: 700; letter-spacing: 2px;
+  color: #ffb41e; text-align: center; white-space: nowrap;
+}
+.fqa-right-col {
+  display: flex; flex-direction: column; gap: 12px;
+  min-width: 0; /* grid 자식이 넘치지 않도록 */
+}
+
+/* 말풍선 — 오른쪽 공간 전체 사용 */
+.fqa-bubble {
+  background: rgba(255,180,30,0.08);
+  border: 2px solid rgba(255,180,30,0.5);
+  padding: 22px 28px;
+  font-size: 19px; color: #e0e0f0; line-height: 1.9;
+  font-family: 'Jua', sans-serif;
+  position: relative;
+  box-shadow: 0 0 18px rgba(255,180,30,0.1);
+  word-break: keep-all;
+  white-space: normal;
+  transition: opacity 0.2s ease;
+}
+.fqa-bubble.fade { opacity: 0; }
+.fqa-feedback-line {
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.15);
+  color: #ffcf7a; opacity: 0; transition: opacity 0.35s ease;
+}
+.fqa-feedback-line.show { opacity: 1; }
+.fq-check-btn {
+  font-family:'Jua',sans-serif; font-size:14px; color:#ffcf7a;
+  background:transparent; border:1px solid #ffcf7a;
+  padding:4px 16px; cursor:pointer; transition:background 0.2s;
+}
+.fq-check-btn:hover { background:rgba(255,207,122,0.15); }
+.fqa-choice-btn.multi-selected {
+  border-color:#7fff00; color:#7fff00; background:rgba(127,255,0,0.08);
+}
+/* Q에 이미지가 있으면 텍스트(왼쪽) + 이미지(오른쪽) 2열 레이아웃 */
+.fqa-bubble.has-img {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 18px 20px;
+}
+.fqa-bubble.has-img .fqa-bubble-name { margin-bottom: 9px; }
+.fqa-bubble-text { flex: 1 1 auto; font-size: 20px; line-height: 2.0; }
+.fqa-bubble-img  { flex: 0 0 480px; display: flex; align-items: center; justify-content: center; }
+.fqa-bubble-img img {
+  width: 480px; height: 360px; object-fit: contain;
+  border-radius: 8px; background: #fff; padding: 6px;
+  display: block;
+}
+.fqa-bubble::before {
+  content: '';
+  position: absolute; left: -12px; top: 22px;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-right: 12px solid rgba(255,180,30,0.5);
+}
+.fqa-bubble-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px; font-weight: 700; letter-spacing: 3px;
+  color: #ffb41e; margin-bottom: 9px;
+}
+.fqa-bubble .math {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700; color: #ffeb3b;
+}
+.fqa-bubble .math-white {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700; color: #fff;
+}
+
+/* 보기 버튼들 */
+.fqa-choices {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.fqa-choice-btn {
+  font-family: 'Jua', sans-serif; font-size: 16px; font-weight: 400;
+  padding: 13px 20px; text-align: left;
+  background: rgba(0,0,0,0.4);
+  border: 2px solid rgba(255,255,255,0.15);
+  color: #b8b8d4; cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.fqa-choice-btn:hover {
+  border-color: #ffb41e; color: #fff;
+  background: rgba(0,240,255,0.07);
+}
+.fqa-choice-btn.selected-ok {
+  border-color: #7fff00; color: #7fff00;
+  background: rgba(127,255,0,0.08);
+  pointer-events: none;
+}
+.fqa-choice-btn.selected-ng {
+  border-color: #ff3860; color: #ff3860;
+  background: rgba(255,56,96,0.08);
+  animation: fqaShake 0.3s;
+  pointer-events: none;
+}
+.fqa-choice-btn.disabled {
+  opacity: 0.35; pointer-events: none;
+}
+@keyframes fqaShake {
+  0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)}
+}
+
+/* 코멘트 박스 */
+.fqa-comment {
+  margin-top: 12px; padding: 11px 15px;
+  font-size: 13px; line-height: 1.65; color: #b8b8d4;
+  display: none;
+}
+.fqa-comment.show { display: block; }
+.fqa-comment.ok {
+  background: rgba(127,255,0,0.08);
+  border-left: 3px solid #7fff00; color: #c8ffb0;
+}
+.fqa-comment.info {
+  background: rgba(0,240,255,0.07);
+  border-left: 3px solid #ffb41e; color: #b0eeff;
+}
+.fqa-comment .math { font-family:'JetBrains Mono',monospace; font-weight:700; color:#ffeb3b; }
+.fqa-comment .math-g { font-family:'JetBrains Mono',monospace; font-weight:700; color:#7fff00; }
+
+/* 다음 버튼 */
+.fqa-next-btn {
+  display: none; margin-top: 14px;
+  font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; padding: 10px 24px;
+  background: #ffb41e; color: #150c00;
+  border: none; cursor: pointer;
+  box-shadow: 3px 3px 0 #ffb41e;
+  transition: transform 0.15s; text-transform: uppercase;
+  animation: fqaNextPulse 1.4s infinite;
+}
+@keyframes fqaNextPulse {
+  0%,100%{box-shadow:3px 3px 0 #ffb41e;}
+  50%{box-shadow:3px 3px 0 #ffb41e, 0 0 14px rgba(0,240,255,0.5);}
+}
+.fqa-next-btn:hover { transform: translate(-2px,-2px); }
+.fqa-next-btn.show { display: inline-block; }
+
+/* 진행 번호 */
+.fqa-progress {
+  display: flex; gap: 8px; justify-content: center;
+  margin-bottom: 18px;
+}
+.fqa-dot {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,240,255,0.25);
+  background: rgba(0,0,0,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px; font-weight: 700;
+  color: rgba(255,255,255,0.25);
+  transition: all 0.3s;
+}
+.fqa-dot.done {
+  background: rgba(255,180,30,0.18);
+  border-color: #ffb41e;
+  color: #ffb41e;
+  box-shadow: 0 0 8px rgba(0,240,255,0.5);
+}
+.fqa-dot.cur {
+  background: rgba(255,235,59,0.15);
+  border-color: #ffeb3b;
+  color: #ffeb3b;
+  box-shadow: 0 0 8px rgba(255,235,59,0.5);
+}
+.fqa-dot:hover:not(.cur) {
+  border-color: rgba(255,255,255,0.5);
+  color: rgba(255,255,255,0.8);
+  transform: scale(1.15);
+}
+
+/* 종료 화면 */
+.fqa-end {
+  display: none; text-align: center; padding: 16px 0 8px;
+}
+.fqa-end.show { display: block; }
+.fqa-end-title {
+  font-family: 'Orbitron', sans-serif; font-weight: 900;
+  font-size: clamp(18px,4vw,26px); letter-spacing: 2px;
+  background: linear-gradient(90deg,#ffb41e,#ffb41e);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  margin-bottom: 10px;
+}
+.fqa-end-btns { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:16px; }
+.fqa-end-btn {
+  font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; padding: 10px 22px; border: none; cursor: pointer;
+  text-transform: uppercase; transition: transform 0.15s;
+}
+.fqa-end-btn:hover { transform: translate(-2px,-2px); }
+/* 문제식 힌트 — 말풍선 안 TEACHER 아래 */
+.fqa-hint-formula {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,0.35);
+  border: 2px solid rgba(0,240,255,0.4);
+  padding: 10px 20px;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(22px, 3.5vw, 30px);
+  font-weight: 700;
+  color: #fff;
+  box-shadow: 0 0 12px rgba(0,240,255,0.12);
+  letter-spacing: 2px;
+}
+.fqa-hint-formula .hl-a   { color: #ffb41e; }
+.fqa-hint-formula .hl-mid { color: #ff7a00; }
+.fqa-hint-formula .hl-b   { color: #7fff00; }
+
+/* Q9 정리 박스 */
+.fqa-summary-box { display:flex; flex-direction:column; gap:14px; }
+.fqa-sum-problem {
+  font-family:'JetBrains Mono',monospace; font-size:clamp(22px,3.5vw,32px);
+  font-weight:700; color:#fff; text-align:center; letter-spacing:2px;
+  padding:12px; background:rgba(0,0,0,0.3); border:2px solid rgba(255,255,255,0.1);
+}
+.s-mid { color:#ff7a00; }
+.fqa-sum-steps { display:flex; flex-direction:column; gap:8px; }
+.fqa-sum-step {
+  display:flex; align-items:center; gap:12px;
+  padding:10px 16px; background:rgba(0,0,0,0.3);
+  border-left:3px solid rgba(255,255,255,0.15);
+  font-size:15px; color:#b8b8d4;
+  opacity:0; transform:translateX(-14px);
+  transition: opacity 0.4s, transform 0.4s;
+}
+.fqa-sum-step.vis { opacity:1; transform:translateX(0); }
+.fqs-num {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:#ffb41e; color:#150c00; flex-shrink:0;
+}
+.fqs-val { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:18px; margin-left:4px; }
+.sc { color:#ffb41e; } .sg { color:#7fff00; }
+.fqa-sum-step:nth-child(1) { border-left-color:#ffb41e; }
+.fqa-sum-step:nth-child(2) { border-left-color:#7fff00; }
+.fqa-sum-step:nth-child(3) { border-left-color:#ff7a00; }
+
+/* 애니메이션 영역 */
+.fqa-anim-wrap {
+  padding:16px 20px; background:rgba(0,0,0,0.35);
+  border:2px solid rgba(255,122,0,0.4);
+  opacity:0; transition:opacity 0.4s;
+}
+.fqa-anim-wrap.vis { opacity:1; }
+.fqa-anim-eq {
+  font-family:'JetBrains Mono',monospace; font-size:clamp(20px,3vw,28px);
+  font-weight:700; text-align:center; color:#fff;
+  display:flex; justify-content:center; align-items:center; gap:6px;
+}
+.fqa-anim-6x { color:#ff7a00; }
+
+/* 화살표 행 — x²·9 바로 아래 정렬 */
+.fqa-anim-arrows {
+  display:flex; justify-content:center; align-items:flex-start;
+  gap:6px; margin-top:4px; margin-bottom:6px;
+}
+/* x²과 같은 너비 자리 잡기 위해 eq 스팬 너비를 추적 */
+.fqa-anim-slot { display:inline-flex; justify-content:center; }
+.fqa-anim-slot-gap { display:inline-flex; } /* + 기호 자리 */
+
+.fqa-arrow-x, .fqa-arrow-3 {
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  opacity:0; transform:translateY(-6px);
+  transition: opacity 0.4s, transform 0.4s;
+}
+.fqa-arrow-x.vis, .fqa-arrow-3.vis { opacity:1; transform:translateY(0); }
+.faa-line {
+  width:2px; height:20px;
+  background:linear-gradient(to bottom, transparent, currentColor);
+}
+.fqa-arrow-x .faa-line { color:#ffb41e; }
+.fqa-arrow-3 .faa-line { color:#7fff00; }
+.faa-label {
+  font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700;
+  white-space:nowrap;
+}
+.fqa-anim-calc {
+  display:flex; align-items:center; justify-content:center;
+  gap:4px; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(16px,2.5vw,22px); font-weight:700;
+  opacity:0; transform:translateY(8px);
+  transition:opacity 0.4s, transform 0.4s;
+  margin-top:4px;
+}
+.fqa-anim-calc.vis { opacity:1; transform:translateY(0); }
+.fac-op { color:rgba(255,255,255,0.95); }
+.fac-eq { color:#ffeb3b !important; }
+.fac-result { color:#ff7a00; font-size:1.15em; margin-left:4px; }
+
+.fqa-sum-answer {
+  font-family:'JetBrains Mono',monospace; font-size:clamp(16px,2.2vw,22px);
+  font-weight:700; text-align:center; color:#fff; letter-spacing:2px;
+  padding:14px; background:rgba(127,255,0,0.08); border:2px solid #7fff00;
+  box-shadow:0 0 18px rgba(127,255,0,0.2);
+  opacity:0; transform:scale(0.95);
+  transition:opacity 0.5s, transform 0.5s;
+}
+.fqa-sum-answer.vis { opacity:1; transform:scale(1); }
+
+.fqa-end-btn.primary { background: #ffb41e; color: #150c00; box-shadow: 3px 3px 0 #ffb41e; }
+.fqa-end-btn.secondary { background: transparent; color: #ffcc44; border: 2px solid #ffcc44; }
+
+/* 헤더 공식 */
+.fqa-header-formula {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(13px, 2vw, 17px);
+  font-weight: 700;
+  color: #ffeb3b;
+  background: rgba(255,235,59,0.08);
+  border: 2px solid rgba(255,235,59,0.35);
+  padding: 8px 16px;
+  letter-spacing: 1px;
+  box-shadow: 0 0 12px rgba(255,235,59,0.15);
+  white-space: nowrap;
+}
+
+/* Q7 비교표 */
+.fqa-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 14px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.fqa-compare-table th {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px; font-weight: 700; letter-spacing: 3px;
+  padding: 7px 12px; text-align: center; text-transform: uppercase;
+}
+.fqa-compare-table th.col-label { color: #888; background: rgba(0,0,0,0.3); }
+.fqa-compare-table th.col-a     { color: #ffb41e; background: rgba(255,180,30,0.1); }
+.fqa-compare-table th.col-mid   { color: #ff7a00; background: rgba(255,122,0,0.08); }
+.fqa-compare-table th.col-b     { color: #7fff00; background: rgba(127,255,0,0.08); }
+.fqa-compare-table td {
+  padding: 12px 16px; text-align: center;
+  font-size: clamp(16px, 2.5vw, 21px); font-weight: 700;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.fqa-compare-table tr.row-formula td { color: #b8b8d4; background: rgba(0,0,0,0.25); }
+.fqa-compare-table tr.row-example td { color: #fff;    background: rgba(0,0,0,0.15); }
+.fqa-compare-table td.hl-a   { color: #ffb41e; }
+.fqa-compare-table td.hl-mid { color: #ff7a00; }
+.fqa-compare-table td.hl-b   { color: #7fff00; }
+.fqa-compare-table td.hl-plus {
+  color: rgba(255,255,255,0.35);
+  font-size: 20px; font-weight: 700;
+  padding: 0 2px; width: 20px;
+  text-align: center;
+}
+.fqa-compare-table td.row-label {
+  font-family: 'Orbitron', sans-serif; font-size: 15px;
+  letter-spacing: 2px; color: #555; text-align: left; padding-left: 10px;
+}
+</style>
+
+<div class="popup-overlay" id="formula-popup">
+  <div class="popup" style="--popup-color:#ffb41e;--popup-glow:rgba(255,180,30,0.3);">
+    <div class="popup-header">
+      <div>
+        <div class="popup-badge" style="background:#ffb41e;color:#000;font-weight:900;">공식 배우기</div>
+        <div class="popup-title">삼차방정식 학습하기</div>
+      </div>
+      <button class="popup-close" onclick="closePopup('formula-popup')">✕</button>
+    </div>
+    <div class="popup-body">
+
+      <!-- 진행 도트 -->
+      <div class="fqa-progress" id="fqa-progress"></div>
+
+      <!-- Q&A 본문 -->
+      <div class="fqa-wrap" id="fqa-wrap"></div>
+
+      <!-- 종료 화면 -->
+      <div class="fqa-end" id="fqa-end">
+        <div class="fqa-end-title">학습 완료!</div>
+        <p style="font-size:14px;color:#b8b8d4;line-height:1.7;">
+          삼차방정식을 모두 살펴봤어요.<br>
+          이제 직접 풀어보고 싶다면 예제 학습으로 이동하세요!
+        </p>
+        <div class="fqa-end-btns">
+          <button class="fqa-end-btn primary" onclick="closePopup('formula-popup')">이해했다! 닫기</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ 예제 학습 Q&A 팝업 ══ -->
+<style>
+#example-popup .popup {
+  width: min(820px, 96vw);
+  max-height: 92vh;
+}
+#example-popup .popup-body {
+  padding: 20px 16px;
+}
+
+.eqa-progress { display:flex; gap:8px; justify-content:center; margin-bottom:18px; flex-wrap:wrap; }
+.eqa-dot {
+  width:28px; height:28px; border-radius:50%;
+  border:2px solid rgba(255,235,59,0.25);
+  background: rgba(0,0,0,0.3);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  color: rgba(255,255,255,0.25);
+  transition: all 0.3s; cursor:pointer;
+}
+.eqa-dot.done { background: rgba(255,235,59,0.15); border-color:#ffeb3b; color:#ffeb3b; box-shadow:0 0 8px rgba(255,235,59,0.5); }
+.eqa-dot.cur  { background: rgba(255,180,30,0.18); border-color:#ffb41e; color:#ffb41e; box-shadow:0 0 8px rgba(0,240,255,0.5); }
+.eqa-dot:hover:not(.cur) { border-color: rgba(255,255,255,0.5); color: rgba(255,255,255,0.8); transform: scale(1.15); }
+
+.eqa-stage-label {
+  font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700; letter-spacing:3px;
+  color:#ffeb3b; margin-bottom:8px; text-transform:uppercase;
+}
+.eqa-bubble {
+  background: rgba(255,235,59,0.06);
+  border: 2px solid rgba(255,235,59,0.4);
+  padding: 18px 22px; font-size:17px; color:#e0e0f0; line-height:1.8;
+  margin-bottom:14px;
+}
+.eqa-bubble .math { font-family:'JetBrains Mono',monospace; font-weight:700; color:#ffeb3b; }
+
+.eqa-poly {
+  font-family:'JetBrains Mono',monospace; font-size:clamp(22px,3.5vw,32px);
+  font-weight:700; color:#fff; text-align:center; letter-spacing:2px;
+  padding:14px; background: rgba(0,0,0,0.3); border:2px solid rgba(255,255,255,0.1);
+  margin-bottom:14px;
+}
+.eqa-mid  { color:#ff7a00; }
+.eqa-last { color:#7fff00; }
+
+.eqa-step {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:12px 16px; background: rgba(0,0,0,0.3);
+  border-left:3px solid rgba(255,255,255,0.15);
+  font-size:15px; color:#b8b8d4; margin-bottom:8px;
+}
+.eqa-step.s1 { border-left-color:#ffb41e; }
+.eqa-step.s2 { border-left-color:#7fff00; }
+.eqa-step.s3 { border-left-color:#ff7a00; }
+.eqa-num {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:#ffb41e; color:#150c00; flex-shrink:0;
+}
+.eqa-step.s2 .eqa-num { background:#7fff00; }
+.eqa-step.s3 .eqa-num { background:#ff7a00; }
+
+.eqa-input {
+  font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700;
+  width:60px; padding:6px 8px; text-align:center;
+  background: rgba(0,0,0,0.5); border:2px solid #ffb41e; color:#ffb41e;
+  outline:none; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.eqa-input.slot-b { border-color:#7fff00; color:#7fff00; }
+.eqa-input.ok { border-color:#7fff00 !important; color:#7fff00 !important; box-shadow:0 0 12px rgba(127,255,0,0.5) !important; }
+.eqa-input.ng { border-color:#ff3860 !important; color:#ff3860 !important; animation: eqaShake 0.3s; }
+@keyframes eqaShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+
+.eqa-calc, .eqa-final {
+  display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap;
+  font-family:'JetBrains Mono',monospace; font-size:clamp(16px,2.5vw,22px); font-weight:700;
+  padding:14px; margin-bottom:8px; color:#fff; text-align:center;
+}
+.eqa-calc  { background: rgba(0,0,0,0.3); border:2px solid rgba(255,122,0,0.3); }
+.eqa-final { background: rgba(127,255,0,0.06); border:2px solid rgba(127,255,0,0.3); }
+
+.eqa-check-mark {
+  display:inline-block; opacity:0; transform:scale(0.4);
+  color:#7fff00; margin-left:4px;
+  transition: opacity 0.3s, transform 0.3s;
+}
+.eqa-check-mark.show { opacity:1; transform:scale(1); }
+
+#eqa-correct-popup {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) scale(0.7);
+  font-family:'Orbitron',sans-serif; font-weight:900; font-size:clamp(26px,5vw,42px);
+  color:#fff; text-shadow:0 0 18px rgba(255,255,255,0.9), 0 0 36px rgba(127,255,0,0.6);
+  letter-spacing:4px; z-index:200; opacity:0; pointer-events:none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+#eqa-correct-popup.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+
+.eqa-btn-row { display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+.eqa-check-btn {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px;
+  padding:10px 24px; background:#ffb41e; color:#150c00; border:none; cursor:pointer;
+  box-shadow:3px 3px 0 #ffb41e; transition: transform 0.15s; text-transform:uppercase;
+}
+.eqa-check-btn:hover { transform: translate(-2px,-2px); }
+.eqa-answer-btn {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px;
+  padding:10px 24px; background:transparent; color:#00f0ff; border:2px solid #00f0ff;
+  cursor:pointer; transition: transform 0.15s, background 0.15s; text-transform:uppercase;
+  margin-left:10px;
+}
+.eqa-answer-btn:hover { background:rgba(0,240,255,0.15); transform: translate(-2px,-2px); }
+.eqa-next-btn {
+  display:none;
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px;
+  padding:10px 24px; background:#7fff00; color:#150c00; border:none; cursor:pointer;
+  box-shadow:3px 3px 0 #ffb41e; transition: transform 0.15s; text-transform:uppercase;
+  animation: eqaPulse 1.4s infinite;
+}
+.eqa-next-btn.show { display:inline-block; }
+@keyframes eqaPulse {
+  0%,100% { box-shadow:3px 3px 0 #ffb41e; }
+  50%     { box-shadow:3px 3px 0 #ffb41e, 0 0 14px rgba(127,255,0,0.5); }
+}
+.eqa-next-btn:hover { transform: translate(-2px,-2px); }
+
+.eqa-feedback {
+  padding:10px 14px; font-size:13px; font-weight:600; line-height:1.6; margin-top:4px; display:none;
+}
+.eqa-feedback.show { display:block; }
+.eqa-feedback.ok { background: rgba(127,255,0,0.12); border-left:4px solid #7fff00; color:#7fff00; }
+
+.eqa-end { display:none; text-align:center; padding:16px 0 8px; }
+.eqa-end.show { display:block; }
+.eqa-end-title {
+  font-family:'Orbitron',sans-serif; font-weight:900; font-size:clamp(18px,4vw,26px); letter-spacing:2px;
+  background: linear-gradient(90deg,#ffeb3b,#ffb41e);
+  -webkit-background-clip:text; background-clip:text; color:transparent; margin-bottom:10px;
+}
+</style>
+
+<div class="popup-overlay" id="example-popup">
+  <div class="popup" style="--popup-color:#ffeb3b;--popup-glow:rgba(255,235,59,0.3);">
+    <div class="popup-header">
+      <div>
+        <div class="popup-badge" style="background:#ffeb3b;color:#000;">예제 학습</div>
+        <div class="popup-title">삼차방정식 학습하기</div>
+      </div>
+      <button class="popup-close" onclick="closePopup('example-popup')">✕</button>
+    </div>
+    <div class="popup-body">
+
+      <div class="eqa-progress" id="eqa-progress"></div>
+      <div class="eqa-wrap" id="eqa-wrap"></div>
+
+      <div class="eqa-end" id="eqa-end">
+        <div class="eqa-end-title">완벽합니다! 보스배틀로 이동해주세요!</div>
+        <button class="popup-btn" style="background:#ffeb3b;color:#000;box-shadow:3px 3px 0 #ffb41e;" onclick="closePopup('example-popup')">닫기</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ 보스 씬 (전체화면) ══ -->
+<div id="boss-scene">
+  <canvas id="boss-canvas"></canvas>
+  <button onclick="exitBossScene()" style="position:absolute;top:12px;right:16px;z-index:35;
+    font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;
+    padding:8px 16px;background:rgba(0,0,0,0.5);border:2px solid rgba(255,180,30,0.5);
+    color:#ffb41e;cursor:pointer;" 
+    onmouseover="this.style.background='#ffb41e';this.style.color='#150c00';"
+    onmouseout="this.style.background='rgba(0,0,0,0.5)';this.style.color='#ffb41e';">나가기 ✕</button>
+  <div id="boss-item-layer" style="position:absolute;inset:0;pointer-events:none;z-index:25;overflow:hidden;"></div>
+
+  <!-- 보스씬 HUD -->
+  <div id="boss-hud-bar" style="align-items:flex-start;">
+    <div class="bhp-block">
+      <div class="bhp-label" style="color:#ff6b8a;">PLAYER</div>
+      <div class="bhp-bar-wrap">
+        <div class="bhp-fill" id="b-player-fill"></div>
+        <span class="bhp-val" id="b-player-val">100</span>
+      </div>
+    </div>
+    <div class="bhp-block">
+      <div class="bhp-label" style="color:#7fff00;">BOSS</div>
+      <div class="bhp-bar-wrap">
+        <div class="bhp-fill" id="b-boss-fill"></div>
+        <span class="bhp-val" id="b-boss-val">100</span>
+      </div>
+    </div>
+    <div id="bq-goal" style="position:absolute;top:58px;left:24px;white-space:nowrap;pointer-events:none;
+      font-size:20px;color:#ffffff;font-family:'JetBrains Mono',sans-serif;
+      font-weight:700;text-align:left;line-height:1.4;"></div>
+  </div>
+
+  <!-- 문제 패널 -->
+  <div id="boss-quiz-panel">
+  <div id="bq-instruction" style="display:none;font-size:22px;color:#ffeb3b;font-family:'Outfit',sans-serif;
+    font-weight:700;text-align:center;padding:6px 16px;min-height:170px;
+    flex-direction:column;align-items:center;justify-content:center;"></div>
+  <!-- 조립제법 + 계산기 나란히 -->
+  <div id="bq-synth-calc-row" style="display:flex;gap:12px;padding:4px 16px;align-items:center;justify-content:center;flex-wrap:wrap;min-height:170px;">
+    <div id="bq-synth-area" style="display:none;flex:1;justify-content:center;align-items:center;"></div>
+    <div id="bq-calc" style="display:none;width:100%;text-align:center;">
+      <div style="display:inline-flex;align-items:center;gap:14px;
+        background:rgba(255,180,30,0.08);border:1px solid rgba(255,180,30,0.3);
+        border-radius:10px;padding:14px 24px;">
+        <span style="font-size:22px;color:rgba(255,255,255,0.9);font-family:'JetBrains Mono',monospace;font-weight:600;white-space:nowrap;">x³−3x²−x+3 에</span>
+        <span style="font-size:22px;color:#e0e0f0;font-family:'JetBrains Mono',monospace;">x =</span>
+        <input id="bq-calc-inp" type="number" style="width:90px;height:50px;background:rgba(0,0,0,0.5);
+          border:2px solid rgba(255,180,30,0.6);color:#fff;font-family:'JetBrains Mono',monospace;
+          font-weight:700;font-size:26px;text-align:center;border-radius:8px;outline:none;">
+        <span style="font-size:22px;color:rgba(255,255,255,0.7);font-family:'JetBrains Mono',monospace;">대입 ⇒</span>
+        <span id="bq-calc-result" style="font-size:30px;font-weight:700;color:#ffeb3b;font-family:'JetBrains Mono',monospace;min-width:80px;text-align:left;"></span>
+      </div>
+      <div style="font-size:30px;color:rgba(255,255,255,0.6);font-family:'JetBrains Mono',monospace;margin-top:10px;">
+        대입 후보: -1, 1, -3, 3<span style="color:rgba(255,255,255,0.4);">(3의 약수)</span>
+      </div>
+    </div>
+  </div>
+  <div id="bq-final-area" style="display:none;padding:4px 16px;"></div>
+  <div id="bq-solved-roots" style="font-size:20px;color:#ffeb3b;font-family:'JetBrains Mono',monospace;
+    font-weight:700;text-align:center;min-height:1.4em;"></div>
+  <div id="bq-feedback" style="font-size:12px;padding:2px 16px;min-height:16px;"></div>
+</div><!-- 보스 등장 연출 -->
+<div id="boss-intro">
+  <div class="boss-intro-sprite"><img src="image/boss_stage5.png" style="width:286px;height:auto;filter:drop-shadow(0 0 20px rgba(255,50,100,0.8));" /></div>
+  <div class="boss-intro-name">삼차방정식 마왕</div>
+  <div class="boss-intro-sub">CUBIC EQUATION DEMON</div>
+</div>
+
+<!-- 결과 -->
+<div id="result-overlay">
+  <div class="result-box" id="result-box">
+    <div class="result-title" id="result-title">CLEAR!</div>
+    <div class="result-sub" id="result-sub"></div>
+    <button class="result-btn" id="result-btn" onclick="restartGame()">다시 도전</button>
+    <button id="result-lobby-btn" style="display:none;margin:10px auto 0;padding:12px 32px;
+      font-size:18px;font-family:'Outfit',sans-serif;font-weight:700;
+      background:#ffb41e;color:#030612;border:none;border-radius:8px;
+      cursor:pointer;box-shadow:0 0 16px rgba(0,240,255,0.5);
+      transition:transform 0.1s;" 
+      onmouseover="this.style.transform='scale(1.05)'" 
+      onmouseout="this.style.transform='scale(1)'"
+      onclick="startEndingDlg()">엔딩보기</button>
+  </div>
+</div>
+
+<!-- 엔딩: 마왕과의 마지막 대화 -->
+<div id="post-boss-dlg" onclick="advanceEndingDlg()">
+  <div class="pbd-box" id="pbd-demon">
+    <div class="pbd-inner">
+      <div class="pbd-portrait-frame" id="pbd-demon-frame"><img id="pbd-demon-portrait" src="image/demon_portrait.png" alt=""/></div>
+      <div style="flex:1;">
+        <div class="pbd-name">삼차방정식 마왕</div>
+        <div class="pbd-text" id="pbd-demon-text"></div>
+      </div>
+    </div>
+    <div class="pbd-continue">클릭하여 계속 ▶</div>
+  </div>
+  <div class="pbd-box" id="pbd-player">
+    <div class="pbd-inner">
+      <div class="pbd-portrait-frame" id="pbd-player-frame"><img id="pbd-player-portrait" src="image/player_portrait.png" alt=""/></div>
+      <div style="flex:1;">
+        <div class="pbd-name" id="pbd-player-name">나</div>
+        <div class="pbd-text" id="pbd-player-text"></div>
+      </div>
+    </div>
+    <div class="pbd-continue">클릭하여 계속 ▶</div>
+  </div>
+</div>
+
+<!-- 아웃트로: 이야기 -->
+<div id="outro-screen" onclick="advanceOutro()">
+  <div class="outro-text" id="outro-text"></div>
+  <div class="outro-continue" id="outro-continue">클릭하여 계속 ▶</div>
+</div>
+
+<!-- 졸업 화면 -->
+<div id="grad-screen">
+  <div class="grad-box">
+    <div class="grad-title">THE END</div>
+    <div class="grad-sub" id="grad-sub"></div>
+    <div class="grad-btn-row">
+      <button class="grad-btn grad-btn-primary" onclick="location.href='intro.html'">다시 플레이하기</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+<script>
+/* ════════════════════════════════════
+   캔버스 설정
+════════════════════════════════════ */
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+const bCanvas = document.getElementById('boss-canvas');
+const bCtx    = bCanvas.getContext('2d');
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  // bCanvas는 flex:1 이므로 실제 렌더 높이 = 전체 - 패널
+  const panel = document.getElementById('boss-quiz-panel');
+  const panelH = panel ? panel.offsetHeight : 130;
+  bCanvas.width  = window.innerWidth;
+  bCanvas.height = window.innerHeight - panelH;
+}
+resize();
+window.addEventListener('resize', resize);
+
+const C = {
+  bg:'#070b1f', cyan:'#ffb41e', magenta:'#ffb41e',
+  yellow:'#ffeb3b', green:'#7fff00', red:'#ff3860', purple:'#ffcc44',
+};
+
+/* ════════════════════════════════════
+   게임 상태
+════════════════════════════════════ */
+const G = {
+  scene: 'explore',   // 'explore' | 'boss'
+  playerHP: 100, bossHP: 100,
+  beams: [], beamTimer: 0,
+  dmgFlash: 0, bossDmgFlash: 0,
+  gameOver: false,
+  // 보스 시각 상태
+  bossShake: 0, bossHurt: false,
+};
+
+/* ════════════════════════════════════
+   탐험 씬 — 플레이어
+════════════════════════════════════ */
+
+/* ── 에셋 이미지 (파일 참조) ── */
+var _bgImg = new Image();
+_bgImg.src = 'image/stage5_bg.png';
+var _platImg = new Image();
+_platImg.src = 'image/platform_5.png';
+var _spriteImg = new Image();
+_spriteImg.src = 'image/sprite_sheet.png';
+var SPRITE_FW = 314, SPRITE_FH = 354;
+var SPRITE_ROWS = {idle:0, walk:1, jump:2};
+var SPRITE_COUNTS = {idle:1, walk:4, jump:4};
+var SPRITE_FPS = 8;
+var STAGE_PORTAL_COLOR = ['#cc7799','#aa3366','#f0cce0'];
+var PLAT_CX_RATIO = 0.039062;
+var PLAT_CY_RATIO = 0.331055;
+var PLAT_CW_RATIO = 0.931641;
+
+/* ── 보스 이미지 ── */
+var _bossImg = new Image();
+_bossImg.src = 'image/boss_stage5.png';
+const GROUND_H = 80;
+const groundY = () => canvas.height - GROUND_H;
+
+const P = {
+  x: canvas.width * 0.20, y:0, vx:0, vy:0, w:54, h:88,
+  onGround:false, facing:1,
+  walkFrame:0, walkTimer:0, invincible:0,
+};
+const PLAYER_VISUAL_H = 48 * 2.4; // 기존 스프라이트 표시 크기(충돌범위 확대와 무관하게 고정)
+
+/* 플랫폼 — 사용자 지정 배치 (6개) */
+/* 플랫폼 — 스테이지5 전용 배치: 공식배우기(하단 중앙) · 예제학습(좌상단) · 보스배틀(화면 y축 중앙, 오른쪽 끝) */
+const PLAT_DEFS = [
+  { rx:0.43,  ry:0.80, rw:0.14, h:16 },  // 공식 배우기 (화면 정중앙, 높이는 기존 유지)
+  { rx:0.54,  ry:0.62, rw:0.13, h:16 },  // 계단 2 (★ 좌우로 크게 움직이는 발판 — 오른쪽 끝은 보스 배틀 근처까지)
+  { rx:0.32,  ry:0.42, rw:0.12, h:16 },  // 계단 3 (★ 좌우로 움직이는 발판)
+  { rx:0.24,  ry:0.22, rw:0.20, h:16 },  // 예제 학습
+  { rx:0.82,  ry:0.50, rw:0.11, h:16 },  // 보스 배틀 (★ 슈퍼점프로만 도달 가능 — 화면 y축 중앙, 더 오른쪽으로 배치)
+];
+
+/* 계단 2, 3은 시간에 따라 좌우로 오가는 움직이는 발판 (서로 정반대 타이밍) */
+const MOVING_PLAT_PERIOD = 2600; // (실제로는 아래 sin() 인자 스케일이며, 완전한 반대 위상은 π*PERIOD만큼 오프셋)
+const MOVING_PLAT_IDXS = {
+  1: { phaseOffset: 0, amp: 0.24 },                          // 계단 2: 넓게 왕복 (오른쪽 끝이 보스 배틀 근처)
+  2: { phaseOffset: Math.PI * MOVING_PLAT_PERIOD, amp: 0.05 }, // 계단 3: 기존처럼 좁게 왕복
+};
+
+function getPlatforms() {
+  return PLAT_DEFS.map((p, i) => {
+    let rx = p.rx;
+    const mv = MOVING_PLAT_IDXS[i];
+    if (mv) {
+      rx = p.rx + Math.sin((Date.now() + mv.phaseOffset) / MOVING_PLAT_PERIOD) * mv.amp;
+    }
+    return {
+      x: rx * canvas.width,
+      y: p.ry * canvas.height,
+      w: p.rw * canvas.width,
+      h: p.h,
+    };
+  });
+}
+
+/* 포털 정의 — 각 플랫폼 위에 배치 */
+const PORTAL_DEFS = [
+  { rx:0.22, onPlatIdx:0, label:'공식 배우기', icon:'', color:'#ffb41e',   action:'formula'  },
+  { rx:0.83, onPlatIdx:3, label:'예제 학습',   icon:'', color:C.yellow, action:'example'  },
+  { rx:0.275, onPlatIdx:4, label:'보스 배틀',  icon:'', color:C.red,   action:'boss'     },
+  { rx:0.08, onGround:true, label:'메인화면', icon:'', color:'#cc7799', action:'main' },
+];
+
+function getPortals() {
+  return PORTAL_DEFS.map(function(pd){
+    var px, py;
+    if (pd.onGround) {
+      px = pd.rx * canvas.width;
+      py = groundY() - 104;
+    } else {
+      var pl = getPlatforms()[pd.onPlatIdx];
+      px = pl.x + pl.w / 2 - 40;
+      py = pl.y - 104;
+    }
+    return Object.assign({x:px, y:py, w:80, h:104}, pd);
+  });
+}
+
+/* 키 */
+const KEY = {};
+window.addEventListener('keydown', e => {
+  KEY[e.code] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyE'].includes(e.code)) e.preventDefault();
+  if (e.code === 'KeyE') tryEnterPortal();
+});
+window.addEventListener('keyup', e => { KEY[e.code] = false; });
+
+let popupOpen = false;
+
+function openPopup(id) {
+  popupOpen = true;
+  document.getElementById(id).classList.add('open');
+  if (id === 'formula-popup' && typeof fqaRestart === 'function') fqaRestart();
+  if (id === 'example-popup' && typeof eqaRestart === 'function') eqaRestart();
+}
+function closePopup(id) {
+  document.getElementById(id).classList.remove('open');
+  popupOpen = false;
+}
+
+/* ── 포털 진입 판정 ── */
+function tryEnterPortal() {
+  if (popupOpen || G.scene !== 'explore' || G.gameOver || G._introPlaying) return;
+  getPortals().forEach(portal => {
+    const dx = (P.x + P.w/2) - (portal.x + portal.w/2);
+    const dy = (P.y + P.h/2) - (portal.y + portal.h/2);
+    if (Math.abs(dx) < 60 && Math.abs(dy) < 80) {
+      triggerPortal(portal.action);
+    }
+  });
+}
+
+function triggerPortal(action) {
+  if (action === 'main') { window.location.href='mainpage.html?from=5'; return; }
+  if (action === 'formula') openPopup('formula-popup');
+  else if (action === 'example') openPopup('example-popup');
+  else if (action === 'boss') {
+    if (!G.bossIntroShown) {
+      G.bossIntroShown = true;
+      showBossIntro(true); // true = auto-enter after intro
+    } else {
+      enterBossScene();
+    }
+  }
+}
+
+/* ── 점프 파티클 ── */
+const jumpParticles = [];
+function spawnJumpParticles(x, y, isSuperJump) {
+  const count = isSuperJump ? 20 : 8;
+  const col   = isSuperJump ? '#ffcc44' : '#ffb41e';
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 / count) * i + (isSuperJump ? 0 : Math.PI * 0.5);
+    const spd   = isSuperJump ? 3 + Math.random()*4 : 1.5 + Math.random()*2;
+    jumpParticles.push({
+      x, y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd - (isSuperJump ? 2 : 0),
+      life: isSuperJump ? 28 : 18,
+      maxLife: isSuperJump ? 28 : 18,
+      r: isSuperJump ? 5 : 3,
+      col,
+    });
+  }
+}
+function updateJumpParticles() {
+  for (let i = jumpParticles.length - 1; i >= 0; i--) {
+    const p = jumpParticles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.15;
+    p.life--;
+    if (p.life <= 0) jumpParticles.splice(i, 1);
+  }
+}
+function drawJumpParticles() {
+  jumpParticles.forEach(p => {
+    const alpha = p.life / p.maxLife;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.col;
+    ctx.shadowColor = p.col; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * alpha, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+}
+
+/* ── 플레이어 물리 ── */
+const GRAVITY = 0.55, JUMP_V = -13.5, SUPER_JUMP_V = -16, SPEED = 4.5;
+P.jumpCount = 0;
+let spaceWasUp = true;
+
+function updatePlayer() {
+  if (popupOpen || G.scene !== 'explore' || G.gameOver) return;
+
+  if (KEY['ArrowLeft'])  { P.vx = -SPEED; P.facing = -1; }
+  else if (KEY['ArrowRight']) { P.vx =  SPEED; P.facing =  1; }
+  else P.vx = 0;
+
+  // Space로만 점프, 2단 슈퍼점프
+  if (KEY['Space'] && spaceWasUp) {
+    if (P.onGround) {
+      P.vy = JUMP_V; P.onGround = false; P.jumpCount = 1;
+      spawnJumpParticles(P.x + P.w/2, P.y + P.h, false);
+    } else if (P.jumpCount === 1) {
+      P.vy = SUPER_JUMP_V; P.jumpCount = 2;
+      spawnJumpParticles(P.x + P.w/2, P.y + P.h/2, true);
+    }
+    spaceWasUp = false;
+  }
+  if (!KEY['Space']) spaceWasUp = true;
+
+  P.vy = Math.min(P.vy + GRAVITY, 20);
+  P.x += P.vx;
+  P.y += P.vy;
+  P.x = Math.max(0, Math.min(canvas.width - P.w, P.x));
+
+  P.onGround = false;
+  const gy = groundY() - P.h;
+  if (P.y >= gy) { P.y = gy; P.vy = 0; P.onGround = true; P.jumpCount = 0; }
+
+  getPlatforms().forEach(pl => {
+    if (P.x + P.w > pl.x && P.x < pl.x + pl.w &&
+        P.y + P.h > pl.y && P.y + P.h < pl.y + 20 && P.vy >= 0) {
+      P.y = pl.y - P.h; P.vy = 0; P.onGround = true; P.jumpCount = 0;
+    }
+  });
+
+  if (P.vx !== 0 && P.onGround) {
+    P.walkTimer++;
+    if (P.walkTimer > 7) { P.walkFrame=(P.walkFrame+1)%4; P.walkTimer=0; }
+  } else if (P.vx === 0) { P.walkFrame=0; }
+
+  if (P.invincible > 0) P.invincible--;
+  updateJumpParticles();
+
+  // E 키 안내 — 포털 근처 표시
+  let nearPortal = false;
+  getPortals().forEach(portal => {
+    const dx = (P.x + P.w/2) - (portal.x + portal.w/2);
+    const dy = (P.y + P.h/2) - (portal.y + portal.h/2);
+    if (Math.abs(dx) < 70 && Math.abs(dy) < 90) nearPortal = true;
+  });
+  // 포털 근처 안내는 캔버스 위 포털 라벨로 표시됨
+}
+
+/* ════════════════════════════════════
+   보스 씬 진입/탈출
+════════════════════════════════════ */
+G.bossIntroShown = false;
+
+function showBossIntro(autoEnter) {
+  const el = document.getElementById('boss-intro');
+  el.classList.add('show');
+  enterBossScene();
+  setTimeout(() => { el.classList.remove('show'); }, 1500);
+}
+
+function enterBossScene() {
+  G.scene = 'boss';
+  playCurrentMusic();
+  document.getElementById('boss-scene').classList.add('active');
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('controls-hint').style.display = 'none';
+  document.getElementById('music-toggle-btn')?.classList.add('in-boss');
+  G.beams = []; G.beamTimer = 0;
+  loadBossQuestion();
+  // 패널이 DOM에 반영된 뒤 canvas 크기 재계산
+  requestAnimationFrame(() => { resize(); initBossPlayerPos(); bossLoop(); });
+}
+
+function exitBossScene() {
+  G.scene = 'explore';
+  G.gameOver = false;
+  document.getElementById('music-toggle-btn')?.classList.remove('in-boss');
+  clearTimeout(b5PendingTimeout);
+  if (b5RAF) { cancelAnimationFrame(b5RAF); b5RAF = null; }
+  clearItems();
+  try {
+    const bp = getPortals().find(p => p.action === 'boss');
+    if (bp) {
+      P.x = bp.x + bp.w/2 - P.w/2;
+      P.y = bp.y + bp.h - P.h;
+      P.vx = 0; P.vy = 0; P.onGround = true; P.jumpCount = 0;
+    }
+  } catch(e) {}
+  requestAnimationFrame(exploreLoop);
+  playCurrentMusic();
+  document.getElementById('boss-scene').classList.remove('active');
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('controls-hint').style.display = 'flex';
+}
+
+/* ════════════════════════════════════
+   보스 씬 — 에너지빔 (전 화면 범위)
+════════════════════════════════════ */
+const BEAM_TYPES = [
+  // 우→좌 수평
+  () => ({
+    x: bCanvas.width + 20,
+    y: 80 + Math.random() * (bCanvas.height - BOSS_GROUND_H - 120),
+    vx: -(5 + Math.random()*3),
+    vy: 0, grav: 0, r:12, type:'straight'
+  }),
+  // 좌→우 수평
+  () => ({
+    x: -20,
+    y: 80 + Math.random() * (bCanvas.height - BOSS_GROUND_H - 120),
+    vx: (5 + Math.random()*3),
+    vy: 0, grav: 0, r:12, type:'straight'
+  }),
+  // 대각선 (좌상→우하)
+  () => ({
+    x: -20,
+    y: 60 + Math.random() * 80,
+    vx: 4 + Math.random()*2,
+    vy: 3 + Math.random()*2, grav: 0, r:11, type:'diag'
+  }),
+  // 대각선 (우상→좌하)
+  () => ({
+    x: bCanvas.width + 20,
+    y: 60 + Math.random() * 80,
+    vx: -(4 + Math.random()*2),
+    vy: 3 + Math.random()*2, grav: 0, r:11, type:'diag'
+  }),
+  // 포물선 (아래에서 위로 솟구쳐 낙하)
+  () => ({
+    x: 40 + Math.random() * (bCanvas.width - 80),
+    y: bCanvas.height - BOSS_GROUND_H + 10,
+    vx: (Math.random()-0.5)*4,
+    vy: -(10 + Math.random()*4), grav: 0.3, r:13, type:'arc'
+  }),
+];
+
+// 보스 위치 (씬에서)
+const BOSS = { x: 0, y: 0, w: 80, h: 80 };
+// 플레이어 보스씬 위치
+const BP = { x: 0, y: 0, w: 60, h: 99, invincible: 0 };
+const BP_VISUAL_H = 54 * 2.4; // 기존 스프라이트 표시 크기(충돌범위 확대와 무관하게 고정)
+
+/* 보스씬 슈퍼점프 파티클 */
+const bossJumpParticles = [];
+function spawnBossJumpParticles(x, y) {
+  for (let i = 0; i < 20; i++) {
+    const angle = (Math.PI * 2 / 20) * i;
+    const spd = 3 + Math.random() * 4;
+    bossJumpParticles.push({
+      x, y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd - 2,
+      life: 28, maxLife: 28, r: 5, col: '#ffcc44',
+    });
+  }
+}
+function updateBossJumpParticles() {
+  for (let i = bossJumpParticles.length - 1; i >= 0; i--) {
+    const p = bossJumpParticles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--;
+    if (p.life <= 0) bossJumpParticles.splice(i, 1);
+  }
+}
+function drawBossJumpParticles() {
+  bossJumpParticles.forEach(p => {
+    const alpha = p.life / p.maxLife;
+    bCtx.save();
+    bCtx.globalAlpha = alpha;
+    bCtx.fillStyle = p.col;
+    bCtx.shadowColor = p.col; bCtx.shadowBlur = 10;
+    bCtx.beginPath(); bCtx.arc(p.x, p.y, p.r * alpha, 0, Math.PI*2); bCtx.fill();
+    bCtx.restore();
+  });
+}
+
+function spawnBeam() {
+  const fn = BEAM_TYPES[Math.floor(Math.random() * BEAM_TYPES.length)];
+  const b = fn();
+  b.alive = true; b.t = 0;
+  G.beams.push(b);
+}
+
+function updateBeams() {
+  if (G.scene !== 'boss' || G.gameOver) return;
+
+  G.beamTimer++;
+  const interval = Math.max(55, 120 - G.bossHP * 0.5);
+  if (G.beamTimer > interval) {
+    spawnBeam();
+    if (Math.random() < 0.3) spawnBeam();
+    G.beamTimer = 0;
+  }
+
+  const W = bCanvas.width, H = bCanvas.height;
+
+  G.beams.forEach(b => {
+    b.t++;
+    b.vy += b.grav;
+    b.x += b.vx;
+    b.y += b.vy;
+
+    // 플레이어 충돌 (보스씬 플레이어 위치)
+    const px = BP.x, py = BP.y, pw = BP.w, ph = BP.h;
+    if (b.alive && BP.invincible <= 0 &&
+        b.x > px && b.x < px + pw && b.y > py && b.y < py + ph) {
+      b.alive = false;
+      G.playerHP = Math.max(0, G.playerHP - 10);
+      G.dmgFlash = 14;
+      BP.invincible = 70;
+      updateBossHUD();
+      if (G.playerHP <= 0) { showResult(false); return; }
+    }
+
+    if (b.x < -60 || b.x > W+60 || b.y < -60 || b.y > H+60) b.alive = false;
+  });
+  G.beams = G.beams.filter(b => b.alive);
+
+  if (BP.invincible > 0) BP.invincible--;
+  if (G.bossShake > 0) G.bossShake--;
+}
+
+/* ════════════════════════════════════
+   보스씬 플레이어 이동
+════════════════════════════════════ */
+const BOSS_GROUND_H = 20; // bCanvas 하단 여백만 — 패널은 이미 canvas 밖
+const bGroundY = () => bCanvas.height - BOSS_GROUND_H;
+
+const BP_STATE = { vy:0, onGround:false, walkFrame:0, walkTimer:0, facing:1, jumpCount:0 };
+let bSpaceWasUp = true;
+
+function updateBossPlayer() {
+  if (G.scene !== 'boss' || G.gameOver) return;
+  const BSPEED = 4.5;
+  if (KEY['ArrowLeft'])  { BP.x -= BSPEED; BP_STATE.facing = -1; }
+  if (KEY['ArrowRight']) { BP.x += BSPEED; BP_STATE.facing =  1; }
+
+  // Space 더블점프
+  if (KEY['Space'] && bSpaceWasUp) {
+    if (BP_STATE.onGround) {
+      BP_STATE.vy = JUMP_V; BP_STATE.onGround = false; BP_STATE.jumpCount = 1;
+    } else if (BP_STATE.jumpCount === 1) {
+      BP_STATE.vy = SUPER_JUMP_V; BP_STATE.jumpCount = 2;
+      // 슈퍼점프 파티클 (보스 캔버스용)
+      spawnBossJumpParticles(BP.x + BP.w/2, BP.y + BP.h/2);
+    }
+    bSpaceWasUp = false;
+  }
+  if (!KEY['Space']) bSpaceWasUp = true;
+
+  BP_STATE.vy = Math.min(BP_STATE.vy + GRAVITY, 20);
+  BP.y += BP_STATE.vy;
+  BP.x = Math.max(0, Math.min(bCanvas.width - BP.w, BP.x));
+
+  const gy = bGroundY() - BP.h;
+  BP_STATE.onGround = false;
+  if (BP.y >= gy) { BP.y = gy; BP_STATE.vy = 0; BP_STATE.onGround = true; BP_STATE.jumpCount = 0; }
+
+  if ((KEY['ArrowLeft'] || KEY['ArrowRight']) && BP_STATE.onGround) {
+    BP_STATE.walkTimer++;
+    if (BP_STATE.walkTimer > 7) { BP_STATE.walkFrame=(BP_STATE.walkFrame+1)%4; BP_STATE.walkTimer=0; }
+  } else if (!KEY['ArrowLeft'] && !KEY['ArrowRight']) { BP_STATE.walkFrame=0; }
+}
+
+/* 보스씬 초기 플레이어 위치 */
+function initBossPlayerPos() {
+  BP.x = bCanvas.width * 0.12;
+  BP.y = bGroundY() - BP.h;
+  BP_STATE.vy = 0; BP_STATE.onGround = true; BP_STATE.jumpCount = 0;
+}
+
+/* ════════════════════════════════════
+   문제 데이터
+════════════════════════════════════ */
+// 보스 배틀 — 삼차방정식 1문제, 3단계 보스
+const BOSS_EQ = {
+  eq:'x³−3x²−x+3=0', poly:'x³−3x²−x+3',
+  coeffs:[1,-3,-1,3],
+  divisors:[-3,-1,1,3],
+  validRoots:[-1,1,3],
+  rootData:{
+    '-1':{ rootFactor:'x+1', muls:[-1,4,-3], sums:[1,-4,3,0], quot:[1,-4,3], quotStr:'x²−4x+3', factors:['(x+1)','(x−1)','(x−3)'] },
+    '1': { rootFactor:'x−1', muls:[1,-2,-3], sums:[1,-2,-3,0], quot:[1,-2,-3], quotStr:'x²−2x−3', factors:['(x−1)','(x+1)','(x−3)'] },
+    '3': { rootFactor:'x−3', muls:[3,0,-3],  sums:[1,0,-1,0],  quot:[1,0,-1],  quotStr:'x²−1',    factors:['(x−3)','(x+1)','(x−1)'] },
+  },
+  roots:[-1,1,3],
+};
+let currentQ = 0;
+
+// ── 보스 배틀 타이머 & 드래그 ──────────────────────
+const BOSS_TIME = 30; // 초
+let bqTimer = null, bqTimeLeft = BOSS_TIME;
+let bqDragSrc = null, bqDragVal = null;
+let bqAnswer = [null, null, null, null]; // [x², x, 상수, 나머지]
+let bqCellAnswers = {}; // 표 입력값
+
+function bqDropLabel(v, pos) {
+  if (pos===0) return v===1 ? 'x²' : `${v}x²`;
+  if (pos===1) return v===1 ? 'x' : v===-1 ? '−x' : `${v < 0 ? '' : ''}${v}x`;
+  return String(v);
+}
+function bqRestoreBlock(val) {
+  document.querySelectorAll('.bq-blk').forEach(b => {
+    if (!b.dataset.used && parseInt(b.dataset.val) === val && b.style.opacity === '0.3') {
+      b.style.opacity = '1'; b.draggable = true; delete b.dataset.used;
+    }
+  });
+}
+window.bqDragStart = function(e, id, val) {
+  bqDragVal = val;
+  bqDragSrc = { paletteId: id, zoneId: null, pos: null };
+  e.dataTransfer.effectAllowed = 'move';
+};
+window.bqZoneDragStart = function(e, zoneId, pos, val) {
+  bqDragVal = val;
+  bqDragSrc = { paletteId: null, zoneId, pos };
+  e.dataTransfer.effectAllowed = 'move';
+  e.stopPropagation();
+};
+window.bqDropToPalette = function(e) {
+  e.preventDefault();
+  if (!bqDragSrc || !bqDragSrc.zoneId) return;
+  const zone = document.getElementById(bqDragSrc.zoneId);
+  if (zone) {
+    bqAnswer[bqDragSrc.pos] = null;
+    zone.innerHTML = bqDragSrc.pos === 3 ? '?' : ['x²','x','상수'][bqDragSrc.pos];
+    zone.classList.remove('filled');
+  }
+  bqRestoreBlock(bqDragVal);
+  bqDragVal = null; bqDragSrc = null;
+};
+window.bqDrop = function(e, zoneId, pos) {
+  e.preventDefault();
+  if (bqDragVal === null) return;
+  const zone = document.getElementById(zoneId); if (!zone) return;
+  if (bqDragSrc && bqDragSrc.zoneId === zoneId) { bqDragVal=null; bqDragSrc=null; return; }
+  // 이 자리 기존값 복원
+  if (bqAnswer[pos] !== null) bqRestoreBlock(bqAnswer[pos]);
+  // 출처가 다른 드롭존이면 비우기
+  if (bqDragSrc && bqDragSrc.zoneId && bqDragSrc.zoneId !== zoneId) {
+    const srcZ = document.getElementById(bqDragSrc.zoneId);
+    if (srcZ) { bqAnswer[bqDragSrc.pos]=null; srcZ.innerHTML=bqDragSrc.pos===3?'?':['x²','x','상수'][bqDragSrc.pos]; srcZ.classList.remove('filled'); }
+  }
+  bqAnswer[pos] = bqDragVal;
+  const lbl = bqDropLabel(bqDragVal, pos);
+  zone.innerHTML = `<span draggable="true" style="cursor:grab;color:#34d399;font-weight:700;font-family:'JetBrains Mono',monospace;font-size:13px;"
+    ondragstart="bqZoneDragStart(event,'${zoneId}',${pos},${bqDragVal})">${lbl}</span>`;
+  zone.classList.add('filled');
+  if (bqDragSrc && bqDragSrc.paletteId) {
+    const blk = document.getElementById(bqDragSrc.paletteId);
+    if (blk) { blk.style.opacity='0.3'; blk.draggable=false; blk.dataset.used='1'; }
+  }
+  bqDragVal=null; bqDragSrc=null;
+};
+
+function startBossTimer() {
+  clearInterval(bqTimer);
+  bqTimeLeft = BOSS_TIME;
+  const bar = document.getElementById('bq-timer-bar');
+  bqTimer = setInterval(() => {
+    bqTimeLeft--;
+    const pct = (bqTimeLeft / BOSS_TIME) * 100;
+    if (bar) {
+      bar.style.width = pct + '%';
+      bar.style.background = pct > 50 ? '#34d399' : pct > 25 ? '#fbbf24' : '#ff3860';
+    }
+    if (bqTimeLeft <= 0) {
+      clearInterval(bqTimer);
+      // 시간 초과 → HP 깎이고 다음 문제
+      G.playerHP = Math.max(0, G.playerHP - 15);
+      G.dmgFlash = 14; BP.invincible = 60;
+      updateBossHUD(); updateHUD();
+      const fb = document.getElementById('bq-feedback');
+      if (fb) { fb.className='ng'; fb.textContent='⏰ 시간 초과! HP −15'; }
+      if (G.playerHP <= 0) { showResult(false); return; }
+      currentQ++;
+      setTimeout(loadBossQuestion, 1200);
+    }
+  }, 1000);
+}
+
+function loadBossQuestion() {
+  // stage5 보스는 3단계 시퀀스
+  currentQ = 0;
+  G.bossHP = 100;
+  updateBossHUD();
+  boss5Start();
+}
+
+// ── 보스5 전역 상태 ──────────────────────
+let b5Phase = 0;      // 1: 약수먹기, 2: 일차인수, 3: 조립제법
+let b5Items = [];     // 현재 화면의 아이템들 {id, x, y, vx, vy, val, label, el}
+let b5Eaten = [];     // 먹은 약수들
+let b5ChosenRoot = null;
+let b5RAF = null;
+let b5PendingTimeout = null;
+
+function spawnAllItems(items) {
+  const cvs = document.getElementById('boss-canvas');
+  const panelH = cvs ? cvs.offsetHeight : 400;
+  const panelW = cvs ? cvs.offsetWidth  : 800;
+  const n = items.length;
+  const cols = Math.ceil(Math.sqrt(n * (panelW/panelH)));
+  const rows = Math.ceil(n / cols);
+  const cellW = (panelW - 80) / cols;
+  const cellH = (panelH * 0.35) / rows; // 보스 아래 50~85% → 35% 범위
+
+  // shuffle for random column order
+  const shuffled = items.slice().sort(() => Math.random()-0.5);
+  shuffled.forEach((item, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    // y: 보스 높이 아래쪽 (panelH * 0.50 ~ 0.85)
+    item.x = 40 + col * cellW + Math.random() * (cellW - 80);
+    item.y = panelH * 0.50 + row * cellH + Math.random() * (cellH - 40);
+    item.el.style.left = item.x + 'px';
+    item.el.style.top  = item.y + 'px';
+  });
+  return items;
+}
+
+  // [단계 안내]를 캔버스 좌상단에 오버레이로 표시
+  function showPhaseOverlay(text) {
+    let ov = document.getElementById('b5-phase-overlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'b5-phase-overlay';
+      ov.style.cssText = 'position:absolute;top:14px;right:140px;z-index:30;' +
+        'font-size:22px;font-weight:700;color:#ffb41e;font-family:\'Outfit\',sans-serif;' +
+        'text-shadow:0 0 12px rgba(0,240,255,0.8);pointer-events:none;white-space:nowrap;text-align:right;';
+      const layer = document.getElementById('boss-item-layer');
+      if (layer) layer.appendChild(ov);
+    }
+    ov.innerHTML = text;
+  }
+
+  // 화면 중앙에 단계 시작 알림 (잠깐 보였다가 사라짐)
+  function announcePhase(text, callback) {
+    const layer = document.getElementById('boss-item-layer');
+    if (!layer) { if (callback) callback(); return; }
+
+    const el = document.createElement('div');
+    el.style.cssText = `position:absolute;top:50%;left:50%;
+      transform:translate(-50%,-50%);z-index:40;
+      font-size:42px;font-weight:900;font-family:'Outfit',sans-serif;
+      color:#ffeb3b;text-shadow:0 0 24px rgba(255,235,59,0.9);
+      pointer-events:none;text-align:center;white-space:nowrap;
+      animation:none;opacity:1;transition:opacity 0.4s;`;
+    el.innerHTML = text;
+    layer.appendChild(el);
+
+    setTimeout(() => {
+      el.style.opacity = '0';
+      setTimeout(() => {
+        el.remove();
+        if (callback) callback();
+      }, 400);
+    }, 1000);
+  }
+
+  // 계산기 이벤트
+  function updateCalcResult(n) {
+    const res = document.getElementById('bq-calc-result');
+    const xval = document.getElementById('bq-calc-xval');
+    if (xval) xval.textContent = isNaN(n) ? '?' : String(n);
+    if (!res) return;
+    if (isNaN(n)) { res.textContent = ''; return; }
+    const [a,b,c,d] = BOSS_EQ.coeffs;
+    const val = a*n**3 + b*n**2 + c*n + d;
+    res.textContent = `= ${val}`;
+    res.style.color = val === 0 ? '#7fff00' : '#ffeb3b';
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    const inp = document.getElementById('bq-calc-inp');
+    if (inp) {
+      inp.addEventListener('input', () => updateCalcResult(parseInt(inp.value)));
+    }
+  });
+
+  function clearItems() {
+    b5Items.forEach(i => { try { i.el.remove(); } catch(e){} });
+    b5Items = [];
+  }
+
+function boss5Start() {
+  clearTimeout(b5PendingTimeout);
+  if (b5RAF) { cancelAnimationFrame(b5RAF); b5RAF = null; }
+  clearItems();
+  b5Phase = 1;
+  b5Items = []; b5Eaten = []; b5ChosenRoot = null;
+
+  document.getElementById('bq-goal').innerHTML =
+    '목표: <strong style="color:#ffeb3b;">x³−3x²−x+3 = 0</strong> 의 해 구하기';
+  showPhaseOverlay('[1단계] 점프(스페이스)해서 <strong>상수항 3의 약수</strong>를 모두 먹으세요!');
+  const bqInst1 = document.getElementById('bq-instruction');
+  bqInst1.style.display = 'flex';
+  bqInst1.style.fontSize = '44px';
+  bqInst1.style.minHeight = '130px';
+  bqInst1.style.padding = '6px 16px';
+  bqInst1.innerHTML = `<div style="font-size:clamp(18px,3vw,32px);white-space:nowrap;">[1단계]&nbsp;&nbsp;<strong style="color:#ffcc44;">상수항 3의 약수</strong>를 모두 먹으세요!</div>
+    <div style="font-size:20px;color:rgba(255,255,255,0.75);margin-top:10px;">
+      x³−3x²−x+3=0의 해를 구하려면 <strong style="color:#ffcc44;">3의 약수</strong>를 먼저 고려해야 해!
+    </div>`;
+  document.getElementById('bq-synth-area').style.display = 'none';
+  document.getElementById('bq-final-area').style.display = 'none';
+  const row1 = document.getElementById('bq-synth-calc-row');
+  if (row1) row1.style.minHeight = 'auto';
+  const solvedElStart = document.getElementById('bq-solved-roots');
+  if (solvedElStart) { solvedElStart.textContent = ''; solvedElStart.style.fontSize = '26px'; }
+
+  // 정답 약수 1개씩 + 오답 채우기
+  const correctDivs = BOSS_EQ.divisors; // [-3,-1,1,3]
+  const wrongPool = [-2, 2, -4, 4].filter(x => !correctDivs.includes(x));
+  const wrongDivs = wrongPool.slice(0, 2); // 오답 2개만 (총 6개)
+  const allItems = [
+    ...correctDivs.map(d => ({val:String(d), label:String(d), type:'divisor'})),
+    ...wrongDivs.map(d => ({val:String(d), label:String(d), type:'result'})),
+  ];
+  b5Items = spawnAllItems(allItems.map(({val,label,type}) => spawnItem(val, label, type)));
+  b5Items.forEach(addItemClickHandler);
+  announcePhase('[1단계] 상수항의 약수를 모두 먹어라!', boss5Loop);
+}
+
+function spawnItem(val, label, type) {
+  const panel = document.getElementById('boss-item-layer') || document.getElementById('boss-scene');
+  const bqp = document.getElementById('boss-quiz-panel');
+  const cvs = document.getElementById('boss-canvas');
+  const panelH = cvs ? cvs.offsetHeight - 40 : 350;
+  const panelW = cvs ? cvs.offsetWidth : 800;
+
+  const el = document.createElement('div');
+  el.style.cssText = `position:absolute;z-index:20;font-family:'JetBrains Mono',monospace;
+    font-weight:700;font-size:22px;padding:8px 16px;border-radius:10px;
+    cursor:pointer;user-select:none;pointer-events:auto;transition:opacity 0.3s;
+    white-space:nowrap;display:inline-block;width:max-content;
+    background:rgba(0,240,255,0.2);
+    border:1.5px solid #ffb41e;
+    color:#fff;`;
+  el.textContent = label;
+  el.addEventListener('click', () => { if (!item.eaten) boss5EatItem(item); });
+  panel.appendChild(el);
+
+  // 보스 아래쪽 (50~85% 높이)에 배치
+  const vx = (Math.random()-0.5) * 1.5;
+  const vy = (Math.random()-0.5) * 1.2;
+  // 위치는 나중에 spawnAllItems에서 설정
+  const x = 0, y = 0;
+
+  return { val, label, type, x, y, vx, vy, el, eaten:false };
+}
+
+// 클릭으로도 아이템 먹을 수 있도록 (contact collision 보조)
+function addItemClickHandler(item) {
+  item.el.addEventListener('click', () => { if (!item.eaten) boss5EatItem(item); });
+}
+
+function boss5Loop() {
+  if (b5RAF) cancelAnimationFrame(b5RAF);
+  const bqp = document.getElementById('boss-quiz-panel');
+  const cvs2 = document.getElementById('boss-canvas');
+  const panelH = cvs2 ? cvs2.offsetHeight - 40 : 350;
+  const panelW = cvs2?.offsetWidth||800;
+
+  // Player position from game canvas (BP)
+  function loopFn() {
+    if (b5Phase === 0) return;
+    const px = BP ? BP.x + 24 : 60;
+    const py = BP ? BP.y + 24 : 300;
+
+    b5Items.forEach(item => {
+      if (item.eaten) return;
+      // bounce
+      item.x += item.vx; item.y += item.vy;
+      if (item.x < 10 || item.x > panelW - 90) item.vx *= -1;
+      const yMin = panelH * 0.45, yMax = panelH * 0.88;
+      if (item.y < yMin || item.y > yMax) item.vy *= -1;
+      item.el.style.left = item.x + 'px';
+      item.el.style.top  = item.y + 'px';
+
+      // collision with player
+      const dx = item.x + 40 - px;
+      const dy = item.y + 20 - py;
+      if (Math.abs(dx) < 80 && Math.abs(dy) < 70) {
+        if (!item.cooldownUntil || Date.now() >= item.cooldownUntil) {
+          boss5EatItem(item);
+        }
+      }
+    });
+
+    b5RAF = requestAnimationFrame(loopFn);
+  }
+  b5RAF = requestAnimationFrame(loopFn);
+}
+
+function boss5MarkEaten(item) {
+  item.eaten = true;
+  item.el.style.opacity = '0';
+  setTimeout(() => item.el.remove(), 400);
+}
+
+function boss5EatItem(item) {
+  if (b5Phase === 1) {
+    if (item.type === 'divisor') {
+      // 정답 약수: 보스 HP 깎기 (1~5단계 전체가 하나의 HP)
+      boss5MarkEaten(item);
+      G.bossHP = Math.max(1, G.bossHP - 3);
+      G.bossShake = 10; G.bossHurt = true;
+      setTimeout(() => G.bossHurt = false, 300);
+      spawnAttackSlash(); updateBossHUD();
+
+      b5Eaten.push(item.val);
+      const solvedEl1 = document.getElementById('bq-solved-roots');
+      if (solvedEl1) solvedEl1.textContent = b5Eaten.map(v => `${v}`).join(', ');
+
+      const remaining = b5Items.filter(i => !i.eaten && i.type === 'divisor');
+      if (remaining.length === 0) {
+        cancelAnimationFrame(b5RAF); b5RAF = null;
+        b5PendingTimeout = setTimeout(() => announcePhase('[2단계] x³−3x²−x+3에 대입해서 0이 되는 값을 먹어라!', boss5Phase2), 700);
+      }
+    } else {
+      // 오답: 사라지지 않고, 내 HP만 깎임 (잠깐 재충돌 방지 쿨다운만)
+      item.cooldownUntil = Date.now() + 700;
+      G.playerHP = Math.max(0, G.playerHP - 8);
+      G.dmgFlash = 14; updateBossHUD(); updateHUD();
+      if (G.playerHP <= 0) { showResult(false); return; }
+    }
+
+  } else if (b5Phase === 2) {
+    // 대입식 결과 먹기
+    const n = parseInt(item.val);
+    const [a,b,c,d] = BOSS_EQ.coeffs;
+    const result = a*n**3 + b*n**2 + c*n + d;
+    const isZero = result === 0;
+
+    // 계산기에 값 채우고 계산 실행
+    const calcInp = document.getElementById('bq-calc-inp');
+    if (calcInp) calcInp.value = n;
+    updateCalcResult(n);
+
+    if (isZero) {
+      boss5MarkEaten(item);
+      b5ChosenRoot = n;
+      G.bossHP = Math.max(1, G.bossHP - 19);
+      G.bossShake = 12; G.bossHurt = true;
+      setTimeout(() => G.bossHurt = false, 300);
+      spawnAttackSlash(); updateBossHUD();
+
+      // 정답(0이 되는 값)만 누적 표시
+      b5Eaten.push(n);
+      const solvedEl2b = document.getElementById('bq-solved-roots');
+      if (solvedEl2b) solvedEl2b.textContent = b5Eaten.map(v => `${v}`).join(', ');
+
+      cancelAnimationFrame(b5RAF); b5RAF = null;
+      // 화면에 일차인수들 표시
+      b5Items.forEach(i => { if (!i.eaten) { i.eaten=true; i.el.remove(); }});
+      b5PendingTimeout = setTimeout(() => announcePhase('[3단계] 조립제법을 통해 방정식의 해에 접근하세요!', boss5Phase3), 800);
+    } else {
+      // 오답: 사라지지 않고, 내 HP만 깎임, 보스 HP 변화 없음
+      item.cooldownUntil = Date.now() + 700;
+      G.playerHP = Math.max(0, G.playerHP - 8);
+      G.dmgFlash = 14; updateBossHUD(); updateHUD();
+    }
+
+  } else if (b5Phase === 3) {
+    // 이차식 먹기
+    if (b5ChosenRoot === null) return;
+    const rd = BOSS_EQ.rootData[String(b5ChosenRoot)];
+    if (!rd) return;
+    if (item.val === rd.quotStr) {
+      boss5MarkEaten(item);
+      G.bossHP = Math.max(1, G.bossHP - 18);
+      G.bossShake = 14; G.bossHurt = true;
+      setTimeout(() => G.bossHurt = false, 300);
+      spawnAttackSlash(); updateBossHUD();
+      b5Items.forEach(i => { if (!i.eaten) { i.eaten=true; i.el.remove(); }});
+      cancelAnimationFrame(b5RAF); b5RAF = null;
+      b5PendingTimeout = setTimeout(() => announcePhase('[4단계] 세 일차인수를 모두 먹어라!', boss5Phase4), 700);
+    } else {
+      // 오답: 사라지지 않고, 보스 HP 회복
+      item.cooldownUntil = Date.now() + 700;
+      G.bossHP = Math.min(100, G.bossHP + 10);
+      G.playerHP = Math.max(0, G.playerHP - 8);
+      G.dmgFlash = 10; updateBossHUD(); updateHUD();
+      if (G.playerHP <= 0) { showResult(false); return; }
+    }
+
+  } else if (b5Phase === 4) {
+    // 세 인수 먹기
+    const rd = BOSS_EQ.rootData[String(b5ChosenRoot)];
+    if (rd.factors.includes(item.val)) {
+      boss5MarkEaten(item);
+      G.bossHP = Math.max(1, G.bossHP - 7);
+      G.bossShake = 10; G.bossHurt = true;
+      setTimeout(() => G.bossHurt = false, 300);
+      spawnAttackSlash(); updateBossHUD();
+
+      // 먹은 인수를 하단 슬롯에 채워넣기
+      const slots = ['b5f0','b5f1','b5f2'];
+      for (const sid of slots) {
+        const el = document.getElementById(sid);
+        if (el && el.textContent.trim() === '( )') {
+          el.textContent = item.val;
+          el.style.background = 'rgba(52,211,153,0.15)';
+          el.style.border = '1px solid #34d399';
+          el.style.borderRadius = '4px';
+          el.style.padding = '0 4px';
+          break;
+        }
+      }
+
+      const remaining = b5Items.filter(i => !i.eaten && rd.factors.includes(i.val));
+      if (remaining.length === 0) {
+        cancelAnimationFrame(b5RAF); b5RAF = null;
+        b5PendingTimeout = setTimeout(() => announcePhase('최종 해를 찾아라!', boss5Phase5), 700);
+      }
+    } else {
+      // 오답: 사라지지 않고, 보스 HP 회복
+      item.cooldownUntil = Date.now() + 700;
+      G.bossHP = Math.min(100, G.bossHP + 10);
+      G.playerHP = Math.max(0, G.playerHP - 8);
+      G.dmgFlash = 10; updateBossHUD(); updateHUD();
+      if (G.playerHP <= 0) { showResult(false); return; }
+    }
+  } else if (b5Phase === 5) {
+    // 떠다니는 해 먹기
+    const roots = BOSS_EQ.roots;
+    const r = parseInt(item.val);
+    if (roots.includes(r)) {
+      boss5MarkEaten(item);
+      b5Picked.push(r);
+      G.bossHP = Math.max(0, G.bossHP - Math.ceil(30/roots.length));
+      G.bossShake = 14; G.bossHurt = true;
+      setTimeout(() => G.bossHurt = false, 300);
+      spawnAttackSlash(); updateBossHUD();
+
+      const solvedEl = document.getElementById('bq-solved-roots');
+      if (solvedEl) solvedEl.textContent = b5Picked.map(v => `x = ${v}`).join(', ');
+
+      if (b5Picked.length === roots.length) {
+        cancelAnimationFrame(b5RAF); b5RAF = null;
+        b5PendingTimeout = setTimeout(() => showResult(true), 800);
+      }
+    } else {
+      // 오답: 사라지지 않고, 내 HP만 깎임
+      item.cooldownUntil = Date.now() + 700;
+      G.playerHP = Math.max(0, G.playerHP - 8);
+      G.dmgFlash = 14; updateBossHUD(); updateHUD();
+      if (G.playerHP <= 0) { showResult(false); return; }
+    }
+  }
+}
+
+function boss5Phase2() {
+  b5Phase = 2;
+  clearItems();
+  resize();
+  b5Eaten = [];
+  const row2 = document.getElementById('bq-synth-calc-row');
+  if (row2) row2.style.minHeight = '135px';
+  const calc = document.getElementById('bq-calc');
+  if (calc) calc.style.display = 'block';
+  showPhaseOverlay('[2단계] x³−3x²−x+3에 대입해서 0이 되는 값을 먹어라!');
+  document.getElementById('bq-instruction').innerHTML = ''; document.getElementById('bq-instruction').style.display = 'none';
+  const fb = document.getElementById('bq-feedback');
+  if (fb) { fb.className=''; fb.textContent=''; }
+  const solvedEl2 = document.getElementById('bq-solved-roots');
+  if (solvedEl2) solvedEl2.textContent = '';
+
+  // 대입 아이템: 정답(0이 되는) 1개씩 + 오답 추가
+  const [a5,b5c,c5,d5e] = BOSS_EQ.coeffs;
+  const p2Items = [];
+  BOSS_EQ.divisors.forEach(d => {
+    const res = a5*d**3 + b5c*d**2 + c5*d + d5e;
+    const isZero = res === 0;
+    p2Items.push(spawnItem(String(d), String(d), 'divisor'));
+  });
+  // 오답 2개만 추가 (총 6개)
+  [-4, 5].slice(0,2).forEach(d => p2Items.push(spawnItem(String(d), String(d), 'divisor')));
+  b5Items = spawnAllItems(p2Items);
+  b5Items.forEach(addItemClickHandler);
+  boss5Loop();
+}
+
+function boss5Phase3() {
+  b5Phase = 3;
+  clearItems();
+  resize();
+  const rd = BOSS_EQ.rootData[String(b5ChosenRoot)];
+  showPhaseOverlay('[3단계] 조립제법을 통해 방정식의 해에 접근하세요!');
+  const solvedEl3 = document.getElementById('bq-solved-roots');
+  if (solvedEl3) solvedEl3.textContent = '';
+  const bqInst3 = document.getElementById('bq-instruction');
+  bqInst3.style.display = 'flex';
+  bqInst3.style.fontSize = 'clamp(15px,2.6vw,22px)';
+  bqInst3.style.minHeight = 'auto';
+  bqInst3.style.padding = '2px 16px';
+  const row3 = document.getElementById('bq-synth-calc-row');
+  if (row3) row3.style.minHeight = 'auto';
+  document.getElementById('boss-quiz-panel').style.overflowY = 'hidden';
+  bqInst3.innerHTML = `<div>완성된 조립제법 틀을 보고 <span style="color:#ffcc44;">x³−3x²−x+3</span>을 <span style="color:#34d399;">(${rd.rootFactor})</span>으로 나눈 <strong>몫</strong>을 구하세요</div>`;
+  const calc2 = document.getElementById('bq-calc'); if (calc2) calc2.style.display='none';
+
+  // Show synth division table (이미 완성된 상태로 제공)
+  const area = document.getElementById('bq-synth-area');
+  area.style.display = 'flex';
+  area.innerHTML = boss5SynthHTML(rd);
+
+  // Spawn quotient options
+  function wQ() {
+    const o=[[1,-1,0],[0,1,-1],[-1,0,1]][Math.floor(Math.random()*3)];
+    const q=rd.quot, w=[q[0]+o[0],q[1]+o[1],q[2]+o[2]];
+    const s1=w[1]>=0?'+':'−', a1=Math.abs(w[1]), s2=w[2]>=0?'+':'−', a2=Math.abs(w[2]);
+    const xTerm = w[1]===0 ? '' : `${s1}${a1===1?'x':`${a1}x`}`;
+    return `x²${xTerm}${s2}${a2}`;
+  }
+  const opts = [rd.quotStr, wQ(), wQ()].sort(()=>Math.random()-0.5);
+  b5Items = spawnAllItems(opts.map((o,i) => spawnItem(o, o, o===rd.quotStr?'factor':'result')));
+  b5Items.forEach(addItemClickHandler);
+  boss5Loop();
+}
+
+function boss5Phase4() {
+  b5Phase = 4;
+  clearItems();
+  resize();
+  const rd = BOSS_EQ.rootData[String(b5ChosenRoot)];
+
+  // 하단 조립제법 영역에 인수분해 진행 표시
+  const area = document.getElementById('bq-synth-area');
+  if (area) {
+  area.style.display = 'flex';
+    area.innerHTML = `
+      <div style="font-family:'JetBrains Mono',monospace;font-size:24px;color:#e0e0f0;
+        line-height:2.4;text-align:left;padding:8px 0;">
+        <div>
+          <span style="color:#ffcc44;">${BOSS_EQ.poly}</span>
+          <span style="color:rgba(255,255,255,0.95);"> = </span>
+          <span style="color:#34d399;">(${rd.rootFactor})</span>
+          <span style="color:rgba(255,255,255,0.95);"> × </span>
+          <span style="color:#ffb41e;">(${rd.quotStr})</span>
+        </div>
+        <div style="padding-left:${BOSS_EQ.poly.length * 11}px;">
+          <span style="color:rgba(255,255,255,0.95);">= </span>
+          <span style="color:#34d399;" id="b5f0">( )</span>
+          <span style="color:rgba(255,255,255,0.95);"> × </span>
+          <span style="color:#fbbf24;" id="b5f1">( )</span>
+          <span style="color:rgba(255,255,255,0.95);"> × </span>
+          <span style="color:#ff7a00;" id="b5f2">( )</span>
+        </div>
+      </div>`;
+  }
+
+  showPhaseOverlay('[4단계] 세 일차인수를 모두 먹으세요!');
+  document.getElementById('bq-instruction').innerHTML = ''; document.getElementById('bq-instruction').style.display = 'none';
+
+  const wrongF = rd.factors[0].startsWith('(x+')?`(x+${parseInt(rd.factors[0].match(/\d+/)[0])+1})`:`(x−${parseInt(rd.factors[0].match(/\d+/)[0])+1})`;
+  const allF = [...rd.factors, wrongF].sort(()=>Math.random()-0.5);
+  b5Items = spawnAllItems(allF.map(f => spawnItem(f, f, rd.factors.includes(f)?'factor':'result')));
+  b5Items.forEach(addItemClickHandler);
+  boss5Loop();
+}
+
+function boss5Phase5() {
+  b5Phase = 5;
+  clearItems();
+  resize(); // 패널 높이 변경에 맞게 캔버스 재조정
+  const rd = BOSS_EQ.rootData[String(b5ChosenRoot)];
+  const area = document.getElementById('bq-final-area');
+  area.style.display = 'block';
+  area.innerHTML = `<div style="text-align:center;font-family:'JetBrains Mono',monospace;
+    font-size:24px;color:#ffcc44;font-weight:700;padding:6px 0;">${rd.factors.join('')} = 0</div>`;
+  document.getElementById('boss-quiz-panel').style.overflowY = 'hidden';
+  showPhaseOverlay('[5단계] 최종 해를 찾으세요!');
+  const solvedEl = document.getElementById('bq-solved-roots');
+  if (solvedEl) { solvedEl.textContent = ''; solvedEl.style.fontSize = '20px'; }
+
+  const roots = BOSS_EQ.roots.slice().sort((a,b)=>a-b);
+  const wrongPool = [-4,4,5,-5,6,2,-6].filter(v => !roots.includes(v));
+  const allR = [...roots, ...wrongPool.slice(0,1)].sort(()=>Math.random()-0.5);
+
+  b5Picked = [];
+  b5Items = spawnAllItems(allR.map(r => ({ val:String(r), label:`x = ${r}`, type: roots.includes(r) ? 'factor' : 'result' }))
+    .map(({val,label,type}) => spawnItem(val, label, type)));
+  b5Items.forEach(addItemClickHandler);
+  boss5Loop();
+}
+
+let b5Picked = [];
+
+function boss5SynthHTML(rd) {
+  const [a,b,c,d] = BOSS_EQ.coeffs;
+  const given = {c:[1,1,1,1], m:[1,1,1], s:[1,1,1,1]};
+  const cell = (val, g, color) => g
+    ? `<div style="width:60px;height:50px;background:${color}22;border:1px solid ${color}88;
+        color:${color};font-family:'JetBrains Mono',monospace;font-weight:700;font-size:20px;
+        border-radius:6px;display:flex;align-items:center;justify-content:center;">${val}</div>`
+    : `<input type="number" placeholder="?" style="width:60px;height:50px;
+        background:rgba(0,0,0,0.4);border:1px solid rgba(255,180,30,0.35);
+        color:#e0e0f0;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:20px;
+        border-radius:6px;text-align:center;outline:none;">`;
+  return `<div style="display:flex;align-items:stretch;font-family:'JetBrains Mono',monospace;margin:0 auto;width:fit-content;">
+    <div style="display:flex;align-items:center;padding-right:8px;font-size:24px;font-weight:700;color:#ffcc44;">${b5ChosenRoot}</div>
+    <div style="border-left:2px solid #ffcc44;margin:0 8px;"></div>
+    <div>
+      <div style="display:flex;gap:8px;margin-bottom:5px;">${BOSS_EQ.coeffs.map((v,i)=>cell(v,given.c[i],'#ffcc44')).join('')}</div>
+      <div style="display:flex;gap:8px;margin-bottom:4px;padding-left:68px;">${rd.muls.map((v,i)=>cell(v,given.m[i],'#fbbf24')).join('')}</div>
+      <div style="border-top:2px solid #ffcc44;margin:4px 0;"></div>
+      <div style="display:flex;gap:8px;">${rd.sums.map((v,i)=>cell(v,given.s[i],'#34d399')).join('')}</div>
+    </div>
+  </div>`;
+}
+
+
+function updateBossHUD() {
+  const pf = document.getElementById('b-player-fill');
+  const pv = document.getElementById('b-player-val');
+  const bf = document.getElementById('b-boss-fill');
+  const bv = document.getElementById('b-boss-val');
+  if (pf) pf.style.width = G.playerHP + '%';
+  if (pv) pv.textContent  = G.playerHP;
+  if (bf) bf.style.width   = G.bossHP   + '%';
+  if (bv) bv.textContent    = G.bossHP;
+}
+function updateHUD() {
+  const bar = document.getElementById('player-hp-bar');
+  const val = document.getElementById('player-hp-val');
+  if (bar) bar.style.width = G.playerHP + '%';
+  if (val) val.textContent = G.playerHP;
+}
+
+/* ════════════════════════════════════
+   결과
+════════════════════════════════════ */
+/* ════════════════════════════════════
+   엔딩: 삼차방정식 마왕과의 마지막 대화 + 졸업 화면
+════════════════════════════════════ */
+const ENDING_SCRIPT = [
+  { speaker:'demon',  text:'...말도 안 돼. 나는... 흩어지고 있어?' },
+  { speaker:'demon',  text:'아니, 이건 소멸이 아니군. 나는... 풀리고 있는 거였나.' },
+  { speaker:'demon',  text:'내가 지켜온 건 힘이 아니라, 풀리지 않은 문제 그 자체였다.' },
+  { speaker:'demon',  text:'네가 그걸 풀어버렸으니... 더 이상 나로 존재할 이유가 없겠지.' },
+  { speaker:'demon',  text:'가져가라. 내 안에 있던 모든 것 — 이제 네 것이다.' },
+  { speaker:'player', text:'...당신, 처음부터 이러려고 했던 거야?' },
+  { speaker:'demon',  text:'글쎄. 나조차 몰랐다. 그저 이렇게 될 운명이었겠지.' },
+  { speaker:'demon',  text:'삼차방정식 연구소... 여기서 시작해서 여기서 끝나는군. 잘 가라, {name}.' },
+  { speaker:'player', text:'...고마워. 당신 덕분에, 진짜로 이해하게 됐어.' },
+];
+let pbdIdx = -1;
+
+function startEndingDlg() {
+  const name = localStorage.getItem('playerName') || '나';
+  document.getElementById('pbd-player-name').textContent = name;
+  document.getElementById('result-overlay').classList.remove('show');
+  document.getElementById('post-boss-dlg').classList.add('show');
+  startOutroMusic();
+  pbdIdx = -1;
+  advanceEndingDlg();
+}
+
+function advanceEndingDlg() {
+  pbdIdx++;
+  if (pbdIdx >= ENDING_SCRIPT.length) {
+    document.getElementById('post-boss-dlg').classList.remove('show');
+    startOutro();
+    return;
+  }
+  const name = localStorage.getItem('playerName') || '나';
+  const cur = ENDING_SCRIPT[pbdIdx];
+  const text = cur.text.replace('{name}', name);
+  if (cur.speaker === 'demon') {
+    document.getElementById('pbd-demon').classList.add('show');
+    document.getElementById('pbd-demon-text').textContent = text;
+  } else {
+    document.getElementById('pbd-player').classList.add('show');
+    document.getElementById('pbd-player-text').textContent = text;
+  }
+}
+
+/* 이름 받침 유무에 따라 조사(이/가)를 자동으로 골라줌 */
+function hasBatchim(str) {
+  if (!str) return false;
+  const c = str.charCodeAt(str.length - 1);
+  if (c < 0xAC00 || c > 0xD7A3) return false; // 한글 음절이 아니면 받침 없다고 가정
+  return (c - 0xAC00) % 28 !== 0;
+}
+function fillName(str, name) {
+  const particle = hasBatchim(name) ? '이' : '가';
+  return str.replace(/\{name\}(이가)/g, name + particle).replace(/\{name\}/g, name);
+}
+
+/* ── 아웃트로: 이야기 한 줄씩 ── */
+const OUTRO_LINES = [
+  '사실 마왕은 악당이 아니었다.',
+  '그냥, 아무도 끝까지 풀지 못한<br>어려운 문제였을 뿐이다.',
+  '{name}이가 그 문제를 끝까지 풀어내자,',
+  '마왕은 사라진 게 아니라<br>답이 되어 {name}의 지식이 되었다.',
+  '다섯 개의 봉인석은 다시 빛났고,',
+  '삼차방정식 연구소는<br>예전의 평화를 되찾았다.',
+  '언젠가 또 다른 어려운 문제가 나타난다면,',
+  '이번엔 {name}이가 그 답을 알려줄 차례다.',
+];
+let outroIdx = -1;
+
+function startOutro() {
+  outroIdx = -1;
+  document.getElementById('outro-screen').classList.add('show');
+  advanceOutro();
+}
+
+function advanceOutro() {
+  outroIdx++;
+  const textEl = document.getElementById('outro-text');
+  const contEl = document.getElementById('outro-continue');
+
+  if (outroIdx >= OUTRO_LINES.length) {
+    document.getElementById('outro-screen').classList.remove('show');
+    showGraduationScreen();
+    return;
+  }
+
+  const name = localStorage.getItem('playerName') || '나';
+  textEl.classList.remove('show');
+  contEl.classList.remove('show');
+  setTimeout(() => {
+    textEl.innerHTML = fillName(OUTRO_LINES[outroIdx], name);
+    textEl.classList.add('show');
+    setTimeout(() => contEl.classList.add('show'), 400);
+  }, 260);
+}
+
+function showGraduationScreen() {
+  const name = localStorage.getItem('playerName') || '연구원';
+  document.getElementById('grad-sub').innerHTML =
+    `<b style="color:#ffcc44;">${name}</b> 연구원, 다섯 개의 봉인을 모두 풀어내다.`;
+  document.getElementById('grad-screen').classList.add('show');
+}
+
+function showResult(win) {
+  G.gameOver = true;
+  const overlay = document.getElementById('result-overlay');
+  const box     = document.getElementById('result-box');
+  overlay.classList.add('show');
+  if (win) {
+    box.style.setProperty('--res-color','#7fff00');
+    box.style.setProperty('--res-glow','rgba(127,255,0,0.4)');
+    document.getElementById('result-title').textContent = 'STAGE CLEAR!';
+    document.getElementById('result-sub').textContent = '긴 여정의 끝. 당신은 이제 삼차방정식의 진정한 주인입니다.';
+    document.getElementById('result-lobby-btn').style.display = 'block';
+    document.getElementById('result-btn').style.display = 'none';
+    showClearEffect();
+  } else {
+    box.style.setProperty('--res-color','#ff3860');
+    box.style.setProperty('--res-glow','rgba(255,56,96,0.4)');
+    document.getElementById('result-title').textContent = 'GAME OVER';
+    document.getElementById('result-sub').textContent   = '패배했다... 공식을 다시 익히고 도전하라!';
+    document.getElementById('result-lobby-btn').style.display = 'none';
+    document.getElementById('result-btn').style.display = '';
+  }
+}
+function showClearEffect() {
+  const flash = document.getElementById('clear-flash');
+  if (flash) {
+    flash.classList.add('show');
+    setTimeout(() => flash.classList.remove('show'), 120);
+  }
+  ['clear-ring-1','clear-ring-2'].forEach((id, i) => {
+    const r = document.getElementById(id);
+    if (!r) return;
+    r.classList.remove('show');
+    void r.offsetWidth;
+    setTimeout(() => r.classList.add('show'), i * 150);
+  });
+}
+function restartGame() {
+  G.playerHP=100; G.bossHP=100;
+  G.beams=[]; G.beamTimer=0; G.dmgFlash=0; G.bossDmgFlash=0;
+  G.bossShake=0; G.bossHurt=false; G.gameOver=false;
+  G.bossIntroShown=false; G.scene='explore';
+  playCurrentMusic();
+  currentQ=0;
+  document.getElementById('result-overlay').classList.remove('show');
+  document.getElementById('boss-scene').classList.remove('active');
+  document.getElementById('hud').style.display='flex';
+  document.getElementById('controls-hint').style.display='flex';
+  const bossPlat = getPlatforms()[4];
+  P.x = bossPlat.x + bossPlat.w/2 - P.w/2; P.y = bossPlat.y - P.h;
+  P.vx=0; P.vy=0; P.invincible=0; P.onGround=true;
+  updateHUD(); updateBossHUD();
+  requestAnimationFrame(exploreLoop);
+}
+
+/* ════════════════════════════════════
+   탐험 씬 렌더링
+════════════════════════════════════ */
+function drawExploreBackground() {
+  var W=canvas.width, H=canvas.height;
+  if (_bgImg.complete && _bgImg.naturalWidth > 0) {
+    var iw=_bgImg.naturalWidth, ih=_bgImg.naturalHeight;
+    var scale=Math.max(W/iw, H/ih);
+    var dw=iw*scale, dh=ih*scale;
+    var dx=(W-dw)/2, dy=(H-dh)/2;
+    ctx.drawImage(_bgImg, dx, dy, dw, dh+80);
+  } else {
+    var bg=ctx.createLinearGradient(0,0,0,H);
+    bg.addColorStop(0,'#120800'); bg.addColorStop(1,'#0d0500');
+    ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  }
+}
+
+function drawGround() {
+  const W=canvas.width, gy=groundY();
+  const grd=ctx.createLinearGradient(0,gy,0,gy+GROUND_H);
+  grd.addColorStop(0,'rgba(200,100,140,0.25)'); grd.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=grd; ctx.fillRect(0,gy,W,GROUND_H);
+  ctx.strokeStyle='#ffb41e'; ctx.lineWidth=2; ctx.shadowColor='#ffb41e'; ctx.shadowBlur=10;
+  ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke();
+  ctx.shadowBlur=0;
+}
+
+function drawPlatforms() {
+  getPlatforms().forEach(function(pl){
+    if (_platImg.complete && _platImg.naturalWidth > 0) {
+      var imgW=_platImg.naturalWidth, imgH=_platImg.naturalHeight;
+      var drawW=pl.w/PLAT_CW_RATIO;
+      var drawH=drawW*(imgH/imgW);
+      var drawX=Math.round(pl.x-drawW*PLAT_CX_RATIO);
+      var drawY=Math.round(pl.y-drawH*PLAT_CY_RATIO);
+      ctx.drawImage(_platImg, drawX, drawY, drawW, drawH);
+    } else {
+      ctx.fillStyle='rgba(255,200,80,0.1)';ctx.fillRect(Math.round(pl.x),Math.round(pl.y),pl.w,pl.h);
+      ctx.strokeStyle='#ffaa44';ctx.lineWidth=1.5;ctx.strokeRect(Math.round(pl.x),Math.round(pl.y),pl.w,pl.h);
+    }
+  });
+}
+
+function drawGoldenPortal(ctx,cx,cy,rx,ry,t,colors){
+  var c1=colors[0],c2=colors[1],c3=colors[2];
+  function hexToRgb(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
+  var rgb1=hexToRgb(c1),rgb2=hexToRgb(c2),rgb3=hexToRgb(c3);
+  var r1=rgb1[0],g1=rgb1[1],b1=rgb1[2];
+  var r2=rgb2[0],g2=rgb2[1],b2=rgb2[2];
+  var r3=rgb3[0],g3=rgb3[1],b3=rgb3[2];
+  var og=ctx.createRadialGradient(cx,cy,0,cx,cy,rx*2.1);
+  og.addColorStop(0,'rgba('+r1+','+g1+','+b1+',0.22)');
+  og.addColorStop(1,'rgba('+r1+','+g1+','+b1+',0)');
+  ctx.fillStyle=og;ctx.beginPath();ctx.ellipse(cx,cy,rx*2.1,ry*2.1,0,0,Math.PI*2);ctx.fill();
+  var ig=ctx.createRadialGradient(cx,cy-ry*0.1,5,cx,cy,rx);
+  ig.addColorStop(0,'rgba('+r3+','+g3+','+b3+',0.55)');
+  ig.addColorStop(0.4,'rgba('+r1+','+g1+','+b1+',0.40)');
+  ig.addColorStop(1,'rgba('+r2+','+g2+','+b2+',0.05)');
+  ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.fillStyle=ig;ctx.fill();
+  for(var g=5;g>=0;g--){
+    ctx.beginPath();ctx.ellipse(cx,cy,rx+g*4,ry+g*4,0,0,Math.PI*2);
+    ctx.strokeStyle='rgba('+r1+','+g1+','+b1+','+(0.07-g*0.008)+')';
+    ctx.lineWidth=7;ctx.stroke();
+  }
+  ctx.beginPath();ctx.ellipse(cx,cy,rx+6,ry+6,0,0,Math.PI*2);
+  ctx.strokeStyle='rgba('+r1+','+g1+','+b1+',0.55)';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.ellipse(cx,cy,rx-7,ry-7,0,0,Math.PI*2);
+  ctx.strokeStyle='rgba('+r3+','+g3+','+b3+',0.75)';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);
+  ctx.strokeStyle=c1;ctx.lineWidth=3;ctx.shadowColor=c2;ctx.shadowBlur=15;ctx.stroke();ctx.shadowBlur=0;
+  var cl=ctx.createRadialGradient(cx,cy-ry*0.1,0,cx,cy,rx*0.7);
+  cl.addColorStop(0,'rgba('+r3+','+g3+','+b3+',0.65)');
+  cl.addColorStop(1,'rgba('+r1+','+g1+','+b1+',0)');
+  ctx.beginPath();ctx.ellipse(cx,cy,rx*0.7,ry*0.7,0,0,Math.PI*2);ctx.fillStyle=cl;ctx.fill();
+  for(var p=0;p<22;p++){
+    var ba=((cx*137+p*73)%360)*Math.PI/180,dr=0.65+((cx*137+p*31)%100)/200;
+    var sp=0.25+((cx*137+p*17)%10)/25,ph2=((cx*137+p*53)%100)/100*Math.PI*2;
+    var sz=1.2+((cx*137+p*41)%10)/4,pulse=Math.sin(t*sp*2+ph2)*0.5+0.5;
+    var ang=ba+t*0.18*(p%2===0?1:-0.6),dist=rx*dr+Math.sin(t*1.5+ph2)*10;
+    var ppx=cx+Math.cos(ang)*dist,ppy=cy+Math.sin(ang)*dist*(ry/rx);
+    ctx.globalAlpha=0.35+pulse*0.65;
+    if(p%2===0){
+      ctx.beginPath();
+      for(var s=0;s<4;s++){
+        var a=(s/4)*Math.PI*2,a2=a+Math.PI/4;
+        ctx.moveTo(ppx,ppy);ctx.lineTo(ppx+Math.cos(a)*sz*2.2,ppy+Math.sin(a)*sz*2.2);
+        ctx.moveTo(ppx,ppy);ctx.lineTo(ppx+Math.cos(a2)*sz*0.8,ppy+Math.sin(a2)*sz*0.8);
+      }
+      ctx.strokeStyle=c3;ctx.lineWidth=1;ctx.stroke();
+    } else {
+      ctx.beginPath();ctx.arc(ppx,ppy,sz*0.9,0,Math.PI*2);ctx.fillStyle=c3;ctx.fill();
+    }
+  }
+  ctx.globalAlpha=1;
+}
+
+function drawPortals() {
+  var t=Date.now()/1000;
+  var colors=STAGE_PORTAL_COLOR;
+  getPortals().forEach(function(portal,i){
+    var cx=portal.x+portal.w/2,cy=portal.y+portal.h/2;
+    var rx=portal.w/2,ry=portal.h/2;
+    ctx.save();
+    drawGoldenPortal(ctx,cx,cy,rx,ry,t,colors);
+    var platL=getPlatforms()[portal.onPlatIdx];
+    var labelX=platL ? platL.x + platL.w/2 : cx;
+    var labelY=platL ? platL.y + platL.h + 22 : portal.y + portal.h + 20;
+    ctx.font='bold 14px "Orbitron",sans-serif';ctx.textAlign='center';ctx.lineJoin='round';
+    ctx.strokeStyle='rgba(40,20,10,0.85)';ctx.lineWidth=4;ctx.strokeText(portal.label,labelX,labelY);
+    ctx.fillStyle='#ffffff';ctx.shadowColor=colors[0];ctx.shadowBlur=16;
+    ctx.fillText(portal.label,labelX,labelY);
+    ctx.shadowBlur=12;ctx.fillText(portal.label,labelX,labelY);ctx.shadowBlur=0;
+    var dx=(P.x+P.w/2)-cx,dy=(P.y+P.h/2)-cy;
+    if(Math.abs(dx)<70&&Math.abs(dy)<90){
+      ctx.font='bold 13px "Orbitron",sans-serif';
+      ctx.fillStyle='#ffeb3b';ctx.shadowColor='#ffeb3b';ctx.shadowBlur=10;
+      ctx.fillText('[E] 진입',cx,portal.y-12);ctx.shadowBlur=0;
+    }
+    ctx.restore();
+  });
+}
+
+function drawExplorePlayer() {
+  if(G.scene!=='explore') return;
+  if(P.invincible>0&&Math.floor(P.invincible/4)%2===0) return;
+  var px=P.x,py=P.y,pw=P.w,ph=P.h,cx=px+pw/2;
+  if (_spriteImg.complete && _spriteImg.naturalWidth > 0) {
+    var row, frameIdx;
+    if (P.onGround) {
+      if (Math.abs(P.vx)>0.5) {
+        row=1;
+        P._walkDist=(P._walkDist||0)+Math.abs(P.vx);
+        frameIdx=Math.floor(P._walkDist/60)%4;
+        P._lastRow=row; P._lastFrame=frameIdx;
+      } else {
+        row=0; frameIdx=0;
+        P._walkDist=0;
+        P._lastRow=0; P._lastFrame=0;
+      }
+    } else {
+      row=SPRITE_ROWS.jump; frameIdx=1;
+    }
+    var sx=frameIdx*SPRITE_FW, sy=row*SPRITE_FH;
+    var dH=PLAYER_VISUAL_H,dW=dH*(SPRITE_FW/SPRITE_FH),drawY=py+ph-dH;
+    ctx.save();
+    ctx.translate(cx,drawY+dH/2);
+    if(P.facing>0) ctx.scale(-1,1);
+    ctx.drawImage(_spriteImg,sx,sy,SPRITE_FW,SPRITE_FH,-dW/2,-dH/2,dW,dH);
+    ctx.restore();
+  } else {
+    ctx.fillStyle='#ffaa44';
+    ctx.beginPath();ctx.ellipse(cx,py+ph/2,pw/2,ph/2,0,0,Math.PI*2);ctx.fill();
+  }
+  if(P.onGround){
+    ctx.save();ctx.fillStyle='rgba(0,0,0,0.18)';
+    ctx.beginPath();ctx.ellipse(cx,py+ph+2,pw*0.45,4,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  }
+}
+
+/* ════════════════════════════════════
+   보스 씬 렌더링
+════════════════════════════════════ */
+const BOSS_STARS = Array.from({length: 90}, () => ({
+  x: Math.random(), y: Math.random()*0.8, r: Math.random()*1.4+0.3,
+  phase: Math.random()*Math.PI*2, speed: 0.5+Math.random()*1.5
+}));
+
+function drawBossBackground() {
+  const W=bCanvas.width, H=bCanvas.height;
+  const t = Date.now()/1000;
+
+  const bg=bCtx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#030310'); bg.addColorStop(1,'#0a0518');
+  bCtx.fillStyle=bg; bCtx.fillRect(0,0,W,H);
+
+  // 별
+  BOSS_STARS.forEach(s => {
+    const alpha = Math.max(0.15, 0.35 + 0.45*Math.sin(t*s.speed + s.phase));
+    bCtx.globalAlpha = alpha;
+    bCtx.fillStyle = '#ffffff';
+    bCtx.beginPath();
+    bCtx.arc(s.x*W, s.y*H, s.r, 0, Math.PI*2);
+    bCtx.fill();
+  });
+  bCtx.globalAlpha = 1;
+
+  // 오로라 성운 (천천히 드리프트)
+  const driftX = Math.sin(t*0.05)*30;
+  const nebGold = bCtx.createRadialGradient(W*0.65+driftX, H*0.4, 10, W*0.65+driftX, H*0.4, W*0.5);
+  nebGold.addColorStop(0,'rgba(255,180,30,0.20)');
+  nebGold.addColorStop(0.5,'rgba(200,60,150,0.10)');
+  nebGold.addColorStop(1,'rgba(0,0,0,0)');
+  bCtx.fillStyle = nebGold; bCtx.fillRect(0,0,W,H);
+
+  const nebBlue = bCtx.createRadialGradient(W*0.2-driftX, H*0.65, 10, W*0.2-driftX, H*0.65, W*0.4);
+  nebBlue.addColorStop(0,'rgba(80,120,255,0.14)');
+  nebBlue.addColorStop(1,'rgba(0,0,0,0)');
+  bCtx.fillStyle = nebBlue; bCtx.fillRect(0,0,W,H);
+
+  // 피격 플래시
+  if(G.dmgFlash>0){
+    bCtx.fillStyle=`rgba(255,56,96,${G.dmgFlash/24*0.4})`; bCtx.fillRect(0,0,W,H); G.dmgFlash--;
+  }
+}
+
+function drawBossGround() {
+  const W=bCanvas.width, gy=bGroundY();
+  const grd=bCtx.createLinearGradient(0,gy,0,gy+24);
+  grd.addColorStop(0,'rgba(255,56,96,0.3)'); grd.addColorStop(1,'rgba(0,0,0,0)');
+  bCtx.fillStyle=grd; bCtx.fillRect(0,gy,W,24);
+  bCtx.strokeStyle=C.red; bCtx.lineWidth=2; bCtx.shadowColor=C.red; bCtx.shadowBlur=14;
+  bCtx.beginPath(); bCtx.moveTo(0,gy); bCtx.lineTo(W,gy); bCtx.stroke(); bCtx.shadowBlur=0;
+}
+
+function drawBossSprite() {
+  const W=bCanvas.width;
+  const t=Date.now()/1000;
+  const bx = W/2;
+  const by = bCanvas.height * 0.28 + Math.sin(t*1.5)*8 + (G.bossShake>0?(Math.random()-0.5)*12:0);
+
+  BOSS.x = bx - BOSS.w/2;
+  BOSS.y = by - BOSS.h/2;
+
+  bCtx.save();
+  if(G.bossHurt){
+    bCtx.filter='brightness(2) saturate(0.5)';
+    bCtx.globalAlpha=0.7;
+  }
+  var dH, dW;
+  if (_bossImg.complete && _bossImg.naturalWidth>0) {
+    dH = 330 + Math.sin(t*2)*6;
+    dW = dH * (_bossImg.naturalWidth/_bossImg.naturalHeight);
+    bCtx.shadowColor='#ff3860'; bCtx.shadowBlur=30+Math.sin(t*3)*12;
+    var imgTopY = Math.max(10, by - dH*0.55);
+    bCtx.drawImage(_bossImg, bx-dW/2, imgTopY, dW, dH);
+  } else {
+    dH = 160; dW = 160;
+    bCtx.shadowColor='#ff3860'; bCtx.shadowBlur=30+Math.sin(t*3)*12;
+    bCtx.font=`${80+Math.sin(t*2)*4}px serif`;
+    bCtx.textAlign='center'; bCtx.fillStyle='#fff';
+    bCtx.fillText('',bx,by+30);
+  }
+
+  bCtx.filter='none'; bCtx.globalAlpha=1;
+
+  bCtx.shadowBlur=0; bCtx.textAlign='left'; bCtx.restore();
+}
+
+function drawBossPlayer() {
+  if(G.scene!=='boss') return;
+  if(BP.invincible>0&&Math.floor(BP.invincible/4)%2===0) return;
+  var px=BP.x,py=BP.y,pw=BP.w,ph=BP.h,cx=px+pw/2;
+  if (_spriteImg.complete && _spriteImg.naturalWidth > 0) {
+    var row, frameIdx;
+    var isMoving = KEY['ArrowLeft'] || KEY['ArrowRight'];
+    if (BP_STATE.onGround) {
+      if (isMoving) {
+        row=1;
+        BP._walkDist=(BP._walkDist||0)+Math.abs(BP_STATE.vx||4);
+        frameIdx=Math.floor(BP._walkDist/60)%4;
+        BP._lastRow=row; BP._lastFrame=frameIdx;
+      } else {
+        row=0; frameIdx=0;
+        BP._walkDist=0;
+        BP._lastRow=0; BP._lastFrame=0;
+      }
+    } else {
+      row=SPRITE_ROWS.jump; frameIdx=1;
+    }
+    var sx=frameIdx*SPRITE_FW, sy=row*SPRITE_FH;
+    var dH=BP_VISUAL_H,dW=dH*(SPRITE_FW/SPRITE_FH),drawY=py+ph-dH;
+    bCtx.save();
+    bCtx.translate(cx,drawY+dH/2);
+    if(BP_STATE.facing>0) bCtx.scale(-1,1);
+    bCtx.drawImage(_spriteImg,sx,sy,SPRITE_FW,SPRITE_FH,-dW/2,-dH/2,dW,dH);
+    bCtx.restore();
+  } else {
+    bCtx.fillStyle='#ffaa44';
+    bCtx.beginPath();bCtx.ellipse(cx,py+ph/2,pw/2,ph/2,0,0,Math.PI*2);bCtx.fill();
+  }
+  if (BP_STATE.onGround) {
+    bCtx.save();
+    bCtx.fillStyle='rgba(0,0,0,0.18)';
+    bCtx.beginPath();bCtx.ellipse(cx,py+ph+2,pw*0.45,4,0,0,Math.PI*2);bCtx.fill();
+    bCtx.restore();
+  }
+}
+
+function drawBeams() {
+  const t=Date.now()/200;
+  G.beams.forEach(b=>{
+    bCtx.save();
+    // 빔 색상 타입별
+    const col = b.type==='fall'?'#ffcc44' : b.type==='arc'?'#ffeb3b' : '#ff3860';
+    const col2 = b.type==='fall'?'#ffb41e' : b.type==='arc'?'#ff7a00' : '#ff7a00';
+    const grd=bCtx.createRadialGradient(b.x,b.y,0,b.x,b.y,b.r*2);
+    grd.addColorStop(0,col+'ff'); grd.addColorStop(0.5,col2+'88'); grd.addColorStop(1,'transparent');
+    bCtx.fillStyle=grd; bCtx.shadowColor=col; bCtx.shadowBlur=24;
+    bCtx.beginPath(); bCtx.arc(b.x,b.y,b.r+Math.sin(t+b.t)*2,0,Math.PI*2); bCtx.fill();
+    // 꼬리
+    bCtx.strokeStyle=col+'66'; bCtx.lineWidth=4;
+    bCtx.beginPath(); bCtx.moveTo(b.x,b.y); bCtx.lineTo(b.x-b.vx*5,b.y-b.vy*5); bCtx.stroke();
+    bCtx.shadowBlur=0; bCtx.restore();
+  });
+}
+
+/* ════════════════════════════════════
+   공격 이펙트
+════════════════════════════════════ */
+const attackFX = [];   // 일반 공격 슬래시
+const hitSparks = [];  // 보스 피격 스파크
+const skillFX   = [];  // 스킬 폭발
+
+/* 일반 공격: 캐릭터→보스 방향 슬래시 레이 */
+function spawnAttackSlash() {
+  // 출발점: 캐릭터 오른쪽 끝
+  const sx = BP.x + BP.w;
+  const sy = BP.y + BP.h * 0.3;
+  // 목표: 보스 중심
+  const tx = bCanvas.width / 2;
+  const ty = bCanvas.height * 0.28;
+  attackFX.push({ sx, sy, tx, ty, life: 14, maxLife: 14 });
+
+  // 보스 피격 스파크
+  for (let i = 0; i < 10; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd   = 2 + Math.random() * 4;
+    hitSparks.push({
+      x: tx + (Math.random()-0.5)*20,
+      y: ty + (Math.random()-0.5)*20,
+      vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd,
+      life: 18, maxLife: 18,
+      col: Math.random() < 0.5 ? '#ffeb3b' : '#ffb41e',
+    });
+  }
+}
+
+/* 스킬 폭발 이펙트: 더 이상 사용되지 않음 (죽은 코드 정리) */
+
+function updateAttackFX() {
+  for(let i=attackFX.length-1;i>=0;i--)  { attackFX[i].life--;  if(attackFX[i].life<=0)  attackFX.splice(i,1); }
+  for(let i=hitSparks.length-1;i>=0;i--) {
+    const s=hitSparks[i]; s.x+=s.vx; s.y+=s.vy; s.vy+=0.2; s.life--;
+    if(s.life<=0) hitSparks.splice(i,1);
+  }
+  for(let i=skillFX.length-1;i>=0;i--) {
+    const f=skillFX[i]; f.life--;
+    if(f.type==='ring') f.r += (f.maxR-f.r)*0.15;
+    else { f.x+=f.vx; f.y+=f.vy; f.vy+=0.1; }
+    if(f.life<=0) skillFX.splice(i,1);
+  }
+}
+
+function drawAttackFX() {
+  // 슬래시 레이
+  attackFX.forEach(fx => {
+    const p = fx.life / fx.maxLife;
+    bCtx.save();
+    bCtx.globalAlpha = p;
+    // 선
+    const grad = bCtx.createLinearGradient(fx.sx,fx.sy,fx.tx,fx.ty);
+    grad.addColorStop(0,'rgba(0,240,255,0)');
+    grad.addColorStop(0.4,'rgba(0,240,255,0.9)');
+    grad.addColorStop(1,'rgba(255,235,59,1)');
+    bCtx.strokeStyle = grad;
+    bCtx.lineWidth   = 3 + p*4;
+    bCtx.shadowColor = '#ffb41e'; bCtx.shadowBlur = 20;
+    bCtx.beginPath(); bCtx.moveTo(fx.sx,fx.sy); bCtx.lineTo(fx.tx,fx.ty); bCtx.stroke();
+    // 선단 원
+    bCtx.fillStyle = '#ffeb3b'; bCtx.shadowColor='#ffeb3b'; bCtx.shadowBlur=18;
+    bCtx.beginPath();
+    // 진행도에 따라 선단 위치 계산
+    const prog = 1 - p*0.5;
+    const hx = fx.sx + (fx.tx-fx.sx)*prog;
+    const hy = fx.sy + (fx.ty-fx.sy)*prog;
+    bCtx.arc(hx, hy, 5+p*4, 0, Math.PI*2); bCtx.fill();
+    bCtx.restore();
+  });
+
+  // 피격 스파크
+  hitSparks.forEach(s => {
+    const p = s.life/s.maxLife;
+    bCtx.save();
+    bCtx.globalAlpha = p;
+    bCtx.fillStyle = s.col; bCtx.shadowColor=s.col; bCtx.shadowBlur=10;
+    bCtx.beginPath(); bCtx.arc(s.x,s.y,3*p,0,Math.PI*2); bCtx.fill();
+    bCtx.restore();
+  });
+
+  // 스킬 이펙트
+  skillFX.forEach(f => {
+    const p = f.life/f.maxLife;
+    bCtx.save(); bCtx.globalAlpha = p*0.9;
+    if(f.type==='ring') {
+      bCtx.strokeStyle='#ffcc44'; bCtx.shadowColor='#ffcc44'; bCtx.shadowBlur=30;
+      bCtx.lineWidth = 6*p;
+      bCtx.beginPath(); bCtx.arc(f.cx,f.cy,f.r,0,Math.PI*2); bCtx.stroke();
+      // 두번째 링
+      bCtx.strokeStyle='#ffb41e'; bCtx.shadowColor='#ffb41e'; bCtx.lineWidth=3*p;
+      bCtx.beginPath(); bCtx.arc(f.cx,f.cy,f.r*0.6,0,Math.PI*2); bCtx.stroke();
+    } else {
+      bCtx.fillStyle=f.col; bCtx.shadowColor=f.col; bCtx.shadowBlur=14;
+      bCtx.beginPath(); bCtx.arc(f.x,f.y,4*p,0,Math.PI*2); bCtx.fill();
+    }
+    bCtx.restore();
+  });
+}
+let bossLoopRunning = false;
+
+function exploreLoop() {
+  if(G.scene!=='boss') requestAnimationFrame(exploreLoop);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawExploreBackground();
+  drawGround();
+  drawPlatforms();
+  drawPortals();
+  drawJumpParticles();
+  drawExplorePlayer();
+  updatePlayer();
+}
+
+function bossLoop() {
+  if(G.scene!=='explore') requestAnimationFrame(bossLoop);
+  bCtx.clearRect(0,0,bCanvas.width,bCanvas.height);
+  drawBossBackground();
+  drawBossGround();
+  drawBossSprite();
+  drawBeams();
+  drawAttackFX();
+  drawBossJumpParticles();
+  drawBossPlayer();
+  updateBossPlayer();
+  updateBeams();
+  updateBossJumpParticles();
+  updateAttackFX();
+}
+
+/* ════════════════════════════════════
+   튜토리얼
+════════════════════════════════════ */
+let tutorialDone = false;
+G.tutorialDone = false;
+
+function openTutorial() {
+  popupOpen = true;
+  const ov = document.getElementById('tutorial-overlay');
+  ov.style.display = 'flex';
+  ov.style.opacity = '0';
+  requestAnimationFrame(() => { ov.style.opacity = '1'; });
+  setTimeout(() => document.getElementById('tut-b0')?.focus(), 150);
+}
+
+// Enter 키로 제출
+['tut-b0','tut-b1'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); checkTutorial(); }
+  });
+});
+
+function checkTutorial() {
+  const b0 = parseInt(document.getElementById('tut-b0').value);
+  const fb = document.getElementById('tut-fb');
+
+  if (b0 === 3) {
+    document.getElementById('tut-b0').classList.add('ok');
+    document.getElementById('tut-b0').disabled = true;
+    fb.className = 'tut-fb';
+    fb.textContent = '';
+    const popup = document.getElementById('eqa-correct-popup');
+    if (popup) {
+      popup.classList.add('show');
+      clearTimeout(popup._hideTimer);
+      popup._hideTimer = setTimeout(() => popup.classList.remove('show'), 900);
+    }
+    document.getElementById('tut-enter-btn').classList.add('on');
+    tutorialDone = true;
+    G.tutorialDone = true;
+  } else {
+    document.getElementById('tut-b0').classList.add('ng');
+    setTimeout(() => { document.getElementById('tut-b0').classList.remove('ng'); document.getElementById('tut-b0').value = ''; }, 400);
+    fb.className = 'tut-fb ng';
+    fb.textContent = '틀렸어요! 힌트: 삼차방정식은 최대 3개의 해를 가져요.';
+    setTimeout(() => document.getElementById('tut-b0').focus(), 420);
+  }
+}
+
+function closeTutorial() {
+  if (!tutorialDone) return;
+  const ov = document.getElementById('tutorial-overlay');
+  ov.style.opacity = '0';
+  setTimeout(() => { ov.style.display = 'none'; }, 350);
+  popupOpen = false;
+  // 바로 보스 씬으로 이어서 진입
+  setTimeout(() => {
+    if (!G.bossIntroShown) {
+      G.bossIntroShown = true;
+      showBossIntro();
+    } else {
+      enterBossScene();
+    }
+  }, 400);
+}
+
+exploreLoop();
+
+/* ════════════════════════════════════
+   공식 팝업 — KaTeX 렌더 + 증명
+════════════════════════════════════ */
+/* ════════════════════════════════════
+   공식 Q&A 엔진
+════════════════════════════════════ */
+(function initFormulaQA() {
+
+  // 캐릭터 이미지 base64 대신 업로드 경로 사용 (인라인 img src)
+  const TEACHER_IMG = '/mnt/user-data/uploads/1780967690516_image.png';
+
+  /* ─── Q&A 데이터 ─── */
+  const QA = [
+    {
+      // Q1 — 소개
+      q: `조립제법을 이용하여 삼차방정식의 해를 구해봅시다.<br>
+          단계는 다음과 같습니다.<br>
+          <strong>① 조립제법을 사용하여 삼차다항식을 인수분해 한다.</strong><br>
+          <strong>② 각각의 인수가 0이 되는 해를 찾는다.</strong>`,
+      choices: ['삼차방정식의 해 구하러 가기!', '아니요, 준비가 필요해요!'],
+      correct: 0,
+      comment_ng: { type:'info', text:'준비가 되면 언제든 다시 오세요! 기다리고 있을게요', end: true },
+      auto_advance: true,
+    },
+    {
+      // Q2 — 상수항 약수 구하기 (다중선택)
+      q: `<span style="font-size:1.2em;font-weight:700;">&lt;상수항의 약수 구하기&gt;</span><br>
+          먼저 <span class="math">x³−3x²−x+3</span> 을 인수분해 해야 합니다.<br>
+          인수분해 하기 위해 <strong>상수항 3</strong>에 주목합시다.<br>
+          양수와 음수를 포함한 상수항 3의 약수를 모두 고르면?`,
+      choices: ['−1', '1', '−2', '2', '−3', '3'],
+      multi: true,
+      correctSet: [0, 1, 4, 5],
+      comment_ok: { type:'info', text:'맞아요! −1, 1, −3, 3 이 상수항 3의 약수예요.' },
+      comment_ng: { type:'info', text:'상수항 3의 약수는 ±1, ±3 이에요. 2는 3의 약수가 아니에요!' },
+      auto_advance: false,
+    },
+    {
+      // Q3 — 약수 대입
+      q: `<span style="font-size:1.2em;font-weight:700;">&lt;상수항의 약수 대입&gt;</span><br>
+          상수항 3의 약수 <span class="math">−1, 1, −3, 3</span> 을 <span class="math">x³−3x²−x+3</span> 에 대입해봅시다.<br>
+          <br>
+          <span class="math">x = −1</span> 대입 ⇒ <span class="math">(−1)³−3(−1)²−(−1)+3 = −1−3+1+3 = 0</span><br>
+          ⇒ <span class="math">x³−3x²−x+3 = (x+1)×(이차식)</span> 을 의미합니다.<br>
+          위의 식에 <span class="math">−1</span>을 대입해야 0이 되기 때문이죠.`,
+      choices: ['다음으로!'],
+      correct: 0,
+      auto_advance: true,
+    },
+    {
+      // Q4 — 조립제법 탐구
+      q: `<span style="font-size:1.2em;font-weight:700;">&lt;조립제법 탐구&gt;</span><br>
+          <span class="math">x³−3x²−x+3 = (x+1)×(이차식)</span> 에서<br>
+          <span class="math">(이차식)</span>은 <span class="math">x³−3x²−x+3</span> 을 <span class="math">(x+1)</span> 로 나누었을 때의 <strong>몫</strong>입니다.<br>
+          <span class="math">(이차식)</span>을 구하기 위해 조립제법을 사용해봅시다.`,
+      choices: ['다음으로!'],
+      correct: 0,
+      auto_advance: true,
+    },
+    {
+      // Q5 — 조립제법 틀 (빈칸 채우기 + 몫 선택)
+      q: `<span style="font-size:1.2em;font-weight:700;">&lt;x³−3x²−x+3 ÷ (x+1)&gt;</span><br>
+          <span class="math">x³−3x²−x+3</span> 을 <span class="math">(x+1)</span> 로 나누었을 때의 몫을 구하여 봅시다.<br>
+          아래 조립제법 표를 채우고 몫을 선택하세요.<br>
+          <div style="margin:12px 0;display:flex;align-items:stretch;gap:0;font-family:'JetBrains Mono',monospace;">
+            <div style="display:flex;align-items:center;padding-right:8px;font-size:18px;font-weight:700;color:#ffcc44;">−1</div>
+            <div style="border-left:2px solid #ffcc44;margin:0 8px;"></div>
+            <div>
+              <div style="display:flex;gap:8px;margin-bottom:4px;">
+                <div style="width:50px;height:38px;background:rgba(255,180,30,0.12);border:1px solid rgba(255,180,30,0.5);color:#ffcc44;font-weight:700;font-size:16px;border-radius:6px;display:flex;align-items:center;justify-content:center;">1</div>
+                <div style="width:50px;height:38px;background:rgba(255,180,30,0.12);border:1px solid rgba(255,180,30,0.5);color:#ffcc44;font-weight:700;font-size:16px;border-radius:6px;display:flex;align-items:center;justify-content:center;">−3</div>
+                <div style="width:50px;height:38px;background:rgba(255,180,30,0.12);border:1px solid rgba(255,180,30,0.5);color:#ffcc44;font-weight:700;font-size:16px;border-radius:6px;display:flex;align-items:center;justify-content:center;">−1</div>
+                <div style="width:50px;height:38px;background:rgba(255,180,30,0.12);border:1px solid rgba(255,180,30,0.5);color:#ffcc44;font-weight:700;font-size:16px;border-radius:6px;display:flex;align-items:center;justify-content:center;">3</div>
+              </div>
+              <div style="display:flex;gap:8px;margin-bottom:4px;padding-left:58px;">
+                <div style="width:50px;height:38px;background:rgba(239,159,39,0.12);border:1px solid rgba(239,159,39,0.4);color:#fbbf24;font-weight:700;font-size:16px;border-radius:6px;display:flex;align-items:center;justify-content:center;">−1</div>
+                <input type="number" placeholder="?" style="width:50px;height:38px;background:rgba(0,0,0,0.4);border:1px solid rgba(239,159,39,0.4);color:#e0e0f0;font-weight:700;font-size:16px;border-radius:6px;text-align:center;outline:none;">
+                <input type="number" placeholder="?" style="width:50px;height:38px;background:rgba(0,0,0,0.4);border:1px solid rgba(239,159,39,0.4);color:#e0e0f0;font-weight:700;font-size:16px;border-radius:6px;text-align:center;outline:none;">
+              </div>
+              <div style="border-top:2px solid #ffcc44;margin:4px 0;"></div>
+              <div style="display:flex;gap:8px;">
+                <div style="width:50px;height:38px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.5);color:#34d399;font-weight:700;font-size:16px;border-radius:6px;display:flex;align-items:center;justify-content:center;">1</div>
+                <input type="number" placeholder="?" style="width:50px;height:38px;background:rgba(0,0,0,0.4);border:1px solid rgba(52,211,153,0.4);color:#e0e0f0;font-weight:700;font-size:16px;border-radius:6px;text-align:center;outline:none;">
+                <input type="number" placeholder="?" style="width:50px;height:38px;background:rgba(0,0,0,0.4);border:1px solid rgba(52,211,153,0.4);color:#e0e0f0;font-weight:700;font-size:16px;border-radius:6px;text-align:center;outline:none;">
+                <div style="width:50px;height:38px;background:rgba(255,180,30,0.18);border:1px solid rgba(255,180,30,0.6);color:#ffcc44;font-weight:700;font-size:16px;border-radius:6px;display:flex;align-items:center;justify-content:center;">0</div>
+              </div>
+            </div>
+          </div>
+          몫을 구하면?`,
+      choices: ['x²−4x+3', 'x²+4x−3', 'x²−4x−3'],
+      correct: 0,
+      comment_ok: null,
+      comment_ng: { type:'info', text:'합결과 행의 앞 세 수 1, −4, 3 이 몫의 계수예요 → x²−4x+3' },
+      auto_advance: true,
+    },
+    {
+      // Q6 — 인수분해 완성
+      q: `<span class="math">x³−3x²−x+3 = (x+1)(x²−4x+3)</span> 이고,<br>
+          stage3에서 했던 인수분해 공식을 활용하면<br>
+          <span class="math">x²−4x+3 = (x−1)(x−3)</span> 입니다.<br>
+          <br>
+          따라서 <span class="math">x³−3x²−x+3 = (x+1)(x−1)(x−3)</span>`,
+      choices: ['다음으로!'],
+      correct: 0,
+      auto_advance: true,
+    },
+    {
+      // Q7 — 해 도출 (빈칸 채우기)
+      q: `<span class="math">x³−3x²−x+3 = 0</span> 이 되려면<br>
+          <span class="math">(x+1)(x−1)(x−3) = 0</span> 이므로,<br>
+          <span class="math">x+1=0</span> 또는 <span class="math">x−1=0</span> 또는 <span class="math">x−3=0</span><br>
+          ⇒ <strong style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;color:#ffeb3b;">x = <input class="eqa-input" id="s5q7-in1" maxlength="3" style="width:48px;text-align:center;"> 또는 x = <input class="eqa-input" id="s5q7-in2" maxlength="3" style="width:48px;text-align:center;"> 또는 x = <input class="eqa-input" id="s5q7-in3" maxlength="3" style="width:48px;text-align:center;"></strong><br>
+          <span style="font-size:14px;color:#ffcf7a;">네모에 알맞은 수를 채우세요!</span>&nbsp;
+          <button class="fq-check-btn" onclick="s5Q7Check()">확인</button>`,
+      gate: true,
+      choices: ['다음으로!'],
+      correct: 0,
+      auto_advance: true,
+    },
+    {
+      // Q7 — 요약
+      q: `<strong>x³−3x²−x+3 = 0 의 해구하기 요약</strong><br>
+          <br>
+          ① 상수항 3의 약수를 생각하기<br>
+          ② 생각한 약수를 <span class="math">x³−3x²−x+3</span> 에 대입하여 0이 되는 수 찾기<br>
+          ③ 조립제법을 활용하여 인수분해하기<br>
+          ④ 인수가 0이 되는 x 찾기`,
+      choices: ['다음으로!', '처음으로 돌아가기'],
+      correct: 0,
+      comment_ng: null,
+      auto_advance: true,
+    },
+    {
+      // Q8 — 정리 (summary)
+      q: `지금까지 푼 과정을 정리해볼게요!`,
+      summary: true,
+      gate: true,
+      choices: ['마무리하기', '처음부터 다시 학습하기'],
+      correct: -2,
+      comment_ok: null,
+    },
+  ];
+
+  let fqaIdx = 0;
+  let fqaUserChoice = null; // Q6 선택값 저장
+  let fqaMultiSelected = new Set(); // 다중 선택 문제용
+  let fqaOriginalQ = '';
+
+  function render() {
+    const wrap = document.getElementById('fqa-wrap');
+    const endEl = document.getElementById('fqa-end');
+    const progEl = document.getElementById('fqa-progress');
+    if (!wrap || !endEl || !progEl) return;
+
+    wrap.style.display = '';
+    endEl.classList.remove('show');
+
+    const q = QA[fqaIdx];
+
+    // 진행 도트 — 클릭 시 해당 질문으로 이동
+    progEl.innerHTML = '';
+    QA.forEach((_,i) => {
+      const d = document.createElement('div');
+      d.className = 'fqa-dot' + (i < fqaIdx ? ' done' : i === fqaIdx ? ' cur' : '');
+      d.textContent = i + 1;
+      d.style.cursor = 'pointer';
+      d.title = `${i+1}번 질문으로 이동`;
+      d.addEventListener('click', () => { fqaIdx = i; render(); });
+      progEl.appendChild(d);
+    });
+
+    // 빌드
+    wrap.innerHTML = `
+      <div class="fqa-main-row">
+        <div class="fqa-teacher-col">
+          <img class="fqa-teacher-img" src="image/teacher.png" alt="선생님">
+        </div>
+        <div class="fqa-right-col">
+          <div class="fqa-bubble" id="fqa-bubble-el">
+            <div class="fqa-bubble-name">‍TEACHER</div>
+            ${(()=>{
+              const raw = q.q;
+              const imgMatch = raw.match(/<img [^>]+>/);
+              if (imgMatch) {
+                const textPart = raw.replace(/<img [^>]+>/, '').replace(/<br>\s*$/, '').trim();
+                return `<div class="fqa-bubble-text">${textPart}</div>
+                        <div class="fqa-bubble-img">${imgMatch[0]}</div>`;
+              }
+              return raw;
+            })()}
+          </div>
+          ${q.summary ? `
+          <div class="fqa-summary-box" id="fqa-summary-box">
+            <div class="fqa-sum-problem">x³ <span class="s-mid">−</span> 3x² <span class="s-mid">−</span> x <span class="s-mid">+</span> 3 <span style="font-size:0.7em;color:var(--color-text-secondary);">= 0</span></div>
+            <div class="fqa-sum-steps">
+              <div class="fqa-sum-step" id="fqs1">
+                <span class="fqs-num">1</span>
+                <span class="fqs-text">상수항 3의 약수: <strong class="sc">±1, ±3</strong></span>
+              </div>
+              <div class="fqa-sum-step" id="fqs2">
+                <span class="fqs-num">2</span>
+                <span class="fqs-text"><strong class="sc">x=−1</strong> 대입 시 0 → 조립제법으로 인수분해</span>
+              </div>
+            </div>
+            <div class="fqa-anim-wrap" id="fqa-anim-wrap">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:clamp(20px,2.8vw,28px);color:#e0e0f0;line-height:2.4;text-align:center;" id="fqa-anim-calc">
+                <div class="fqa-arrow-x" id="faa-x" style="display:inline;">
+                  x³−3x²−x+3 = <span class="sc">(x+1)</span>(x²−4x+3)
+                </div>
+                <br>
+                <div class="fqa-arrow-3" id="faa-3" style="display:inline;">
+                  = <span class="sc">(x+1)</span><span class="sg">(x−1)</span><span style="color:#ff7a00;">(x−3)</span>
+                </div>
+              </div>
+            </div>
+            <div class="fqa-sum-answer" id="fqa-sum-answer">
+              x = <input class="eqa-input" id="s5sum-in1" maxlength="3" style="width:52px;">
+              &nbsp;또는&nbsp; x = <input class="eqa-input" id="s5sum-in2" maxlength="3" style="width:52px;">
+              &nbsp;또는&nbsp; x = <input class="eqa-input" id="s5sum-in3" maxlength="3" style="width:52px;">
+              <div style="margin-top:10px;">
+                <span style="font-size:13px;color:#ffcf7a;font-family:'Jua',sans-serif;">네모에 알맞은 수를 채우세요!</span>&nbsp;
+                <button class="fq-check-btn" onclick="s5SumCheck()">확인</button>
+              </div>
+            </div>
+          </div>` : ''}
+          <div class="fqa-choices" id="fqa-choices"></div>
+        </div>
+      </div>
+      <button class="fqa-next-btn" id="fqa-next-btn" onclick="fqaNext()">다음 →</button>
+    `;
+
+    // 이미지 있는 Q는 bubble에 has-img 클래스 추가
+    const bubbleEl = document.getElementById('fqa-bubble-el');
+    if (bubbleEl && q.q && q.q.includes('<img ')) {
+      bubbleEl.classList.add('has-img');
+    }
+    if (bubbleEl) fqaOriginalQ = bubbleEl.innerHTML;
+
+    fqaMultiSelected = new Set();
+
+    const choicesEl = document.getElementById('fqa-choices');
+    q.choices.forEach((text, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'fqa-choice-btn';
+      btn.innerHTML = q.choices.length === 1 ? text : `<span style="color:#ffb41e;font-family:'JetBrains Mono',monospace;margin-right:10px;">${['①','②','③','④','⑤','⑥'][i]}</span>${text}`;
+      if (q.multi) {
+        btn.onclick = () => fqaToggleMulti(i, btn);
+      } else {
+        btn.onclick = () => fqaChoose(i, btn);
+      }
+      choicesEl.appendChild(btn);
+    });
+
+    if (q.multi) {
+      const submitBtn = document.createElement('button');
+      submitBtn.className = 'fqa-choice-btn fqa-multi-submit';
+      submitBtn.style.cssText = 'border-color:#7fff00;color:#7fff00;font-weight:700;';
+      submitBtn.textContent = '선택 완료 ✓';
+      submitBtn.onclick = () => fqaSubmitMulti();
+      choicesEl.appendChild(submitBtn);
+    }
+
+    // gate: 빈칸을 맞추기 전까지 선택지 비활성화
+    if (q.gate) {
+      choicesEl.querySelectorAll('.fqa-choice-btn').forEach(b => b.classList.add('disabled'));
+    }
+
+    // Q9 요약 애니메이션 자동 실행
+    if (q.summary) fqaRunSummaryAnim();
+  }
+
+  function fqaRunSummaryAnim() {
+    const show = (id, delay) => setTimeout(() => document.getElementById(id)?.classList.add('vis'), delay);
+    show('fqs1', 200);
+    show('fqs2', 700);
+    setTimeout(() => {
+      document.getElementById('fqa-anim-wrap')?.classList.add('vis');
+      show('faa-x', 100);
+      show('faa-3', 700);
+    }, 1200);
+    setTimeout(() => document.getElementById('fqa-sum-answer')?.classList.add('vis'), 2400);
+  }
+
+  let sdStep = 0;
+  const SD_TOTAL = 9;
+
+  const SD_STEP_LABELS = [
+    '화살표를 클릭하세요!',
+    '1단계 - 계수 적기',
+    '2단계 - 내리기',
+    '3단계 - 곱해서 올리기',
+    '4단계 - 더해서 내리기',
+    '5단계 - 곱해서 올리기',
+    '6단계 - 더해서 내리기',
+    '7단계 - 곱해서 올리기',
+    '8단계 - 더해서 내리기',
+    '완료!',
+  ];
+
+  function sdUpdateUI() {
+    const lbl = document.getElementById('sd-step-label');
+    const prev = document.getElementById('sd-btn-prev');
+    const next = document.getElementById('sd-btn-next');
+    if (lbl) lbl.textContent = SD_STEP_LABELS[sdStep] || `${sdStep} / ${SD_TOTAL} 단계`;
+    if (prev) prev.disabled = sdStep === 0;
+    if (next) next.disabled = sdStep >= SD_TOTAL;
+    if (prev) prev.style.opacity = sdStep === 0 ? '0.3' : '1';
+    if (next) next.style.opacity = sdStep >= SD_TOTAL ? '0.3' : '1';
+    if (sdStep >= SD_TOTAL) {
+      setTimeout(() => document.getElementById('fqa-sum-answer')?.classList.add('vis'), 300);
+    }
+  }
+
+  window.sdAnimStep = function() {
+    if (sdStep < SD_TOTAL) { sdStep++; renderSdAnim(); sdUpdateUI(); }
+  };
+  window.sdAnimNext = function() {
+    if (sdStep < SD_TOTAL) { sdStep++; renderSdAnim(); sdUpdateUI(); }
+  };
+  window.sdAnimPrev = function() {
+    if (sdStep > 0) { sdStep--; renderSdAnim(); sdUpdateUI(); }
+  };
+
+  function initSdAnim() { sdStep = 0; renderSdAnim(); sdUpdateUI(); }
+
+  function renderSdAnim() {
+    const svgEl = document.getElementById('sd-anim-svg');
+    if (!svgEl) return;
+    svgEl.innerHTML = '';
+    const NS  = 'http://www.w3.org/2000/svg';
+    const s   = sdStep;
+
+    // ── Layout ──────────────────────────────
+    const COL  = [58, 170, 270, 370, 468];  // col0=근, col1~4=coeffs
+    const RY   = {
+      term : 22,   // 다항식 항
+      coeff: 60,   // 계수
+      mul  : 100,  // 곱한 값 (badge)
+      hline: 130,  // 수평선 — badge 아래, sum 위
+      sum  : 168,  // 합 결과
+      quot : 216,  // 몫 표시
+    };
+    const PUR='#ffcc44', GRN='#34d399', AMB='#fbbf24', WHT='#e0e0f0';
+
+    function el(tag, attrs, txt) {
+      const e = document.createElementNS(NS, tag);
+      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      if (txt != null) e.textContent = txt;
+      return e;
+    }
+    function tx(x,y,t,fill,sz,fw) {
+      return el('text',{x,y,'text-anchor':'middle','dominant-baseline':'middle',
+        fill:fill||WHT,'font-size':sz||20,'font-weight':fw||'600',
+        'font-family':"'JetBrains Mono',monospace"},t);
+    }
+
+    // defs (arrowheads)
+    const defs = el('defs',{});
+    [[PUR,'pur'],[GRN,'grn'],[AMB,'amb']].forEach(([col,id]) => {
+      const m = el('marker',{id:`sd2-${id}`,markerWidth:9,markerHeight:9,refX:7,refY:3.5,orient:'auto'});
+      m.appendChild(el('path',{d:'M0,0 L0,7 L9,3.5 z',fill:col}));
+      defs.appendChild(m);
+    });
+    svgEl.appendChild(defs);
+
+    // ── Static structure ─────────────────────
+    // vertical left line
+    svgEl.appendChild(el('line',{x1:88,y1:36,x2:88,y2:RY.sum+26,stroke:PUR,'stroke-width':'2.2'}));
+    // horizontal result line — below badges, above sum
+    svgEl.appendChild(el('line',{x1:82,y1:RY.hline,x2:504,y2:RY.hline,stroke:PUR,'stroke-width':'2.2'}));
+
+    // root
+    svgEl.appendChild(tx(COL[0], RY.coeff, '1', PUR, 22, '700'));
+
+    // ── Step 0: 항 + 계수 ────────────────────
+    if (s >= 1) {
+      const terms  = ['x³','−3x²','−x','+3'];
+      const coeffs = ['1','−3','−1','3'];
+      [0,1,2,3].forEach(i => {
+        svgEl.appendChild(tx(COL[i+1], RY.term,  terms[i],  PUR, 15, '500'));
+        svgEl.appendChild(el('line',{x1:COL[i+1],y1:RY.term+10,x2:COL[i+1],y2:RY.coeff-13,
+          stroke:PUR,'stroke-width':'1','stroke-dasharray':'3,3','opacity':'.5'}));
+        svgEl.appendChild(tx(COL[i+1], RY.coeff, coeffs[i], PUR, 22, '700'));
+      });
+    }
+
+    // ── Step 1: 첫 계수 내리기 ───────────────
+    if (s >= 2) {
+      svgEl.appendChild(el('line',{x1:COL[1]-18,y1:RY.coeff+14,x2:COL[1]-18,y2:RY.sum-16,
+        stroke:GRN,'stroke-width':'2.2','marker-end':'url(#sd2-grn)'}));
+      svgEl.appendChild(tx(COL[1], RY.sum, '1', GRN, 22, '700'));
+    }
+
+    // ── Step 2: 1×1=1 곱해서 올리기 (bow col1→col2) ─
+    if (s >= 3) {
+      // 호 화살표: sum 행 오른쪽 → 다음 칸 badge 위
+      // dip을 작게(18) + hline 아래 공간만 사용 → 초록 화살표와 겹침 없음
+      bowArrow2(svgEl, NS, COL[1]+22, RY.sum+2, COL[2], RY.mul+14, AMB, 'amb', null, 18);
+      mulBadge(svgEl, NS, COL[2], RY.mul, '1×1', AMB);
+    }
+
+    // ── Step 3: −3+(+1)=−2 더해서 내리기 ──────
+    if (s >= 4) {
+      svgEl.appendChild(el('line',{x1:COL[2]-18,y1:RY.coeff+14,x2:COL[2]-18,y2:RY.sum-16,
+        stroke:GRN,'stroke-width':'2.2','marker-end':'url(#sd2-grn)'}));
+      svgEl.appendChild(tx(COL[2], RY.sum, '−2', GRN, 22, '700'));
+    }
+
+    // ── Step 4: −2×1=−2 곱해서 올리기 (bow col2→col3) ─
+    if (s >= 5) {
+      bowArrow2(svgEl, NS, COL[2]+22, RY.sum+2, COL[3], RY.mul+14, AMB, 'amb', null, 18);
+      mulBadge(svgEl, NS, COL[3], RY.mul, '1×(−2)', AMB);
+    }
+
+    // ── Step 5: −1+(−2)=−3 더해서 내리기 ──────
+    if (s >= 6) {
+      svgEl.appendChild(el('line',{x1:COL[3]-18,y1:RY.coeff+14,x2:COL[3]-18,y2:RY.sum-16,
+        stroke:GRN,'stroke-width':'2.2','marker-end':'url(#sd2-grn)'}));
+      svgEl.appendChild(tx(COL[3], RY.sum, '−3', GRN, 22, '700'));
+    }
+
+    // ── Step 6: −3×1=−3 곱해서 올리기 (bow col3→col4) ─
+    if (s >= 7) {
+      bowArrow2(svgEl, NS, COL[3]+22, RY.sum+2, COL[4], RY.mul+14, AMB, 'amb', null, 18);
+      mulBadge(svgEl, NS, COL[4], RY.mul, '1×(−3)', AMB);
+    }
+
+    // ── Step 7: 3+(−3)=0 더해서 내리기 ─────────
+    if (s >= 8) {
+      svgEl.appendChild(el('line',{x1:COL[4]-18,y1:RY.coeff+14,x2:COL[4]-18,y2:RY.sum-16,
+        stroke:GRN,'stroke-width':'2.2','marker-end':'url(#sd2-grn)'}));
+      svgEl.appendChild(tx(COL[4], RY.sum, '0', PUR, 22, '800'));
+    }
+
+    // ── Step 8: 몫 박스 + 다항식 표현 ──────────────────
+    if (s >= 9) {
+      svgEl.appendChild(el('rect',{
+        x:COL[1]-44, y:RY.quot-20,
+        width:COL[3]-COL[1]+88, height:40,
+        fill:'rgba(52,211,153,0.12)', stroke:GRN, 'stroke-width':'1.5', rx:7
+      }));
+      // 몫: 라벨
+      svgEl.appendChild(tx(COL[1]-72, RY.quot, '몫:', WHT, 16, '600'));
+      [{x:COL[1], v:'1x²'}, {x:COL[2], v:'−2x'}, {x:COL[3], v:'−3'}]
+        .forEach(({x, v}) => {
+          svgEl.appendChild(tx(x, RY.quot, v, GRN, 18, '700'));
+        });
+      // 나머지
+      svgEl.appendChild(tx(COL[4], RY.quot, '0', PUR, 18, '700'));
+    }
+  }
+
+  function bowArrow2(svgEl, NS, x1, y1, x2, y2, color, mid, label, dip) {
+    const mx = (x1+x2)/2, cy = Math.max(y1,y2)+dip;
+    const p = document.createElementNS(NS,'path');
+    p.setAttribute('d',`M${x1},${y1} Q${mx},${cy} ${x2},${y2}`);
+    p.setAttribute('stroke',color); p.setAttribute('fill','none');
+    p.setAttribute('stroke-width','2.2');
+    p.setAttribute('marker-end',`url(#sd2-${mid})`);
+    svgEl.appendChild(p);
+    if (label) {
+      const lx=mx, ly=cy+14;
+      const bg = document.createElementNS(NS,'rect');
+      bg.setAttribute('x',lx-18); bg.setAttribute('y',ly-11);
+      bg.setAttribute('width',36); bg.setAttribute('height',22);
+      bg.setAttribute('fill',color); bg.setAttribute('rx',4);
+      const lt = document.createElementNS(NS,'text');
+      lt.setAttribute('x',lx); lt.setAttribute('y',ly);
+      lt.setAttribute('text-anchor','middle'); lt.setAttribute('dominant-baseline','middle');
+      lt.setAttribute('fill','white'); lt.setAttribute('font-size',13);
+      lt.setAttribute('font-weight','700');
+      lt.setAttribute('font-family',"'JetBrains Mono',monospace");
+      lt.textContent = label;
+      svgEl.appendChild(bg); svgEl.appendChild(lt);
+    }
+  }
+
+  function mulBadge(svgEl, NS, cx, cy, text, color) {
+    // measure approx width: ~9px per char
+    const w = Math.max(54, text.length * 9 + 16);
+    const h = 28;
+    const bg = document.createElementNS(NS, 'rect');
+    bg.setAttribute('x', cx - w/2); bg.setAttribute('y', cy - h/2);
+    bg.setAttribute('width', w); bg.setAttribute('height', h);
+    bg.setAttribute('fill', color); bg.setAttribute('rx', 6);
+    svgEl.appendChild(bg);
+    const lt = document.createElementNS(NS, 'text');
+    lt.setAttribute('x', cx); lt.setAttribute('y', cy);
+    lt.setAttribute('text-anchor', 'middle'); lt.setAttribute('dominant-baseline', 'middle');
+    lt.setAttribute('fill', 'white'); lt.setAttribute('font-size', 13);
+    lt.setAttribute('font-weight', '700');
+    lt.setAttribute('font-family', "'JetBrains Mono',monospace");
+    lt.textContent = text;
+    svgEl.appendChild(lt);
+  }
+
+
+  window.fqaToggleMulti = function(i, btn) {
+    if (fqaMultiSelected.has(i)) {
+      fqaMultiSelected.delete(i);
+      btn.classList.remove('multi-selected');
+    } else {
+      fqaMultiSelected.add(i);
+      btn.classList.add('multi-selected');
+    }
+  };
+
+  window.s5SumCheck = function() {
+    const ins = ['s5sum-in1','s5sum-in2','s5sum-in3'].map(id => document.getElementById(id));
+    if (ins.some(el => !el)) return;
+    const norm = v => v.trim().replace('−','-');
+    const vals = ins.map(el => norm(el.value));
+    const target = ['-1','1','3'];
+    const ok = vals.slice().sort().join(',') === target.slice().sort().join(',') && new Set(vals).size === 3;
+    ins.forEach(el => { el.classList.toggle('ok', ok); el.classList.toggle('ng', !ok); });
+    if (ok) {
+      ins.forEach(el => el.disabled = true);
+      const popup = document.getElementById('eqa-correct-popup');
+      if (popup) {
+        popup.classList.add('show');
+        clearTimeout(popup._hideTimer);
+        popup._hideTimer = setTimeout(() => popup.classList.remove('show'), 900);
+      }
+      document.querySelectorAll('.fqa-choice-btn').forEach(b => b.classList.remove('disabled'));
+    } else {
+      setTimeout(() => ins.forEach(el => el.classList.remove('ng')), 500);
+    }
+  };
+
+  window.s5Q7Check = function() {
+    const ins = ['s5q7-in1','s5q7-in2','s5q7-in3'].map(id => document.getElementById(id));
+    if (ins.some(el => !el)) return;
+    const norm = v => v.trim().replace('−','-');
+    const vals = ins.map(el => norm(el.value));
+    const target = ['-1','1','3'];
+    const ok = vals.slice().sort().join(',') === target.slice().sort().join(',') && new Set(vals).size === 3;
+    ins.forEach(el => { el.classList.toggle('ok', ok); el.classList.toggle('ng', !ok); });
+    if (ok) {
+      ins.forEach(el => el.disabled = true);
+      const popup = document.getElementById('eqa-correct-popup');
+      if (popup) {
+        popup.classList.add('show');
+        clearTimeout(popup._hideTimer);
+        popup._hideTimer = setTimeout(() => popup.classList.remove('show'), 900);
+      }
+      document.querySelectorAll('.fqa-choice-btn').forEach(b => b.classList.remove('disabled'));
+    } else {
+      setTimeout(() => ins.forEach(el => el.classList.remove('ng')), 500);
+    }
+  };
+
+  window.fqaSubmitMulti = function() {
+    const q = QA[fqaIdx];
+    const bubbleEl  = document.getElementById('fqa-bubble-el');
+    const nextBtn   = document.getElementById('fqa-next-btn');
+    const allBtns   = document.querySelectorAll('.fqa-choice-btn');
+    const correctSet = new Set(q.correctSet || []);
+
+    function updateBubble(text) {
+      if (!bubbleEl || !text) return;
+      let fbLine = bubbleEl.querySelector('.fqa-feedback-line');
+      if (!fbLine) {
+        fbLine = document.createElement('div');
+        fbLine.className = 'fqa-feedback-line';
+        bubbleEl.appendChild(fbLine);
+      }
+      fbLine.classList.remove('show');
+      fbLine.innerHTML = text;
+      requestAnimationFrame(() => fbLine.classList.add('show'));
+    }
+
+    const isOk = fqaMultiSelected.size === correctSet.size &&
+                 [...fqaMultiSelected].every(i => correctSet.has(i));
+
+    if (isOk) {
+      allBtns.forEach(b => b.classList.add('disabled'));
+      const comment = q.comment_ok;
+      if (comment) updateBubble(comment.text);
+      if (q.auto_advance) {
+        setTimeout(() => fqaNext(), comment ? 900 : 300);
+      } else {
+        const choicesEl = document.getElementById('fqa-choices');
+        if (choicesEl && !choicesEl.querySelector('.fqa-multi-next')) {
+          const nb = document.createElement('button');
+          nb.className = 'fqa-choice-btn fqa-multi-next';
+          nb.style.cssText = 'border-color:#ffb41e;color:#ffb41e;font-weight:700;';
+          nb.textContent = '다음';
+          nb.onclick = () => fqaNext();
+          choicesEl.appendChild(nb);
+        }
+      }
+    } else {
+      const comment = q.comment_ng;
+      if (comment) updateBubble(comment.text);
+    }
+  };
+
+window.fqaChoose = function(i, btn) {
+    const q = QA[fqaIdx];
+    const bubbleEl  = document.getElementById('fqa-bubble-el');
+    const nextBtn   = document.getElementById('fqa-next-btn');
+    const allBtns   = document.querySelectorAll('.fqa-choice-btn');
+
+    function updateBubble(text) {
+      if (!bubbleEl || !text) return;
+      let fbLine = bubbleEl.querySelector('.fqa-feedback-line');
+      if (!fbLine) {
+        fbLine = document.createElement('div');
+        fbLine.className = 'fqa-feedback-line';
+        bubbleEl.appendChild(fbLine);
+      }
+      fbLine.classList.remove('show');
+      fbLine.innerHTML = text;
+      requestAnimationFrame(() => fbLine.classList.add('show'));
+    }
+
+    // Q9 특수 처리 (마무리/다시)
+    if (q.correct === -2) {
+      allBtns.forEach(b => b.classList.add('disabled'));
+      btn.classList.add('selected-ok');
+      if (i === 1) { fqaRestart(); return; }
+      fqaShowEnd(); return;
+    }
+
+    // Q6: 아무거나 OK
+    const isOk = q.correct === -1 ? true : (i === q.correct);
+    window.dispatchEvent(new CustomEvent('fqa-answer', { detail: { q: fqaIdx, correct: isOk } })); // 추적용 신호 (기존 로직에 영향 없음)
+    fqaUserChoice = i; // Q6 선택 저장
+
+    allBtns.forEach(b => b.classList.add('disabled'));
+    btn.classList.add(isOk ? 'selected-ok' : 'selected-ng');
+
+    // 오답이면 바로 버튼 재활성화
+    if (!isOk) {
+      const comment = q.comment_ng;
+      if (comment) updateBubble(comment.text);
+      btn.classList.remove('selected-ng','disabled');
+      allBtns.forEach(b => b.classList.remove('disabled'));
+      return;
+    }
+
+    // 정답
+    const comment = q.comment_ok;
+    if (comment) updateBubble(comment.text);
+    if (q.auto_advance) {
+      setTimeout(() => fqaNext(), comment ? 900 : 300);
+    } else {
+      if (nextBtn) nextBtn.classList.add('show');
+    }
+  };
+
+  window.fqaNext = function() {
+    if (fqaIdx >= QA.length - 1) { fqaShowEnd(); return; }
+    fqaIdx++;
+    render();
+  };
+
+  function fqaShowEnd() {
+    const wrap = document.getElementById('fqa-wrap');
+    const endEl = document.getElementById('fqa-end');
+    const progEl = document.getElementById('fqa-progress');
+    if (wrap) wrap.style.display = 'none';
+    if (endEl) endEl.classList.add('show');
+    if (progEl) {
+      progEl.querySelectorAll('.fqa-dot').forEach(d => { d.classList.add('done'); d.classList.remove('cur'); });
+    }
+  }
+
+  window.fqaRestart = function() {
+    fqaIdx = 0; fqaUserChoice = null; render();
+  };
+
+  window.addEventListener('load', () => {});
+})();
+
+
+
+/* ════════════════════════════════════
+   예제 학습 Q&A 엔진
+════════════════════════════════════ */
+(function initExampleQA() {
+
+  const EQA = [
+    {
+      idx:1, eq:'x³−3x²−x+3=0', poly:'x³−3x²−x+3',
+      constTerm:3, divisors:[-3,-1,1,3],
+      coeffs:[1,-3,-1,3], roots:[-1,1,3], halfFilled:true,
+      validRoots:[-1,1,3],
+      rootData:{
+        '-1':{ rootFactor:'x+1', muls:[-1,4,-3], sums:[1,-4,3,0],  quot:[1,-4,3], quotStr:'x²−4x+3', factors:['(x+1)','(x−1)','(x−3)'] },
+        '1': { rootFactor:'x−1', muls:[1,-2,-3], sums:[1,-2,-3,0], quot:[1,-2,-3],quotStr:'x²−2x−3', factors:['(x−1)','(x+1)','(x−3)'] },
+        '3': { rootFactor:'x−3', muls:[3,0,-3],  sums:[1,0,-1,0],  quot:[1,0,-1], quotStr:'x²−1',    factors:['(x−3)','(x+1)','(x−1)'] },
+      },
+    },
+    {
+      idx:2, eq:'x³+2x²−x−2=0', poly:'x³+2x²−x−2',
+      constTerm:-2, divisors:[-2,-1,1,2],
+      coeffs:[1,2,-1,-2], roots:[1,-1,-2], halfFilled:true,
+      validRoots:[-2,-1,1],
+      rootData:{
+        '-2':{ rootFactor:'x+2', muls:[-2,0,2],  sums:[1,0,-1,0],  quot:[1,0,-1], quotStr:'x²−1',    factors:['(x+2)','(x−1)','(x+1)'] },
+        '-1':{ rootFactor:'x+1', muls:[-1,1,2],  sums:[1,1,-2,0],  quot:[1,1,-2], quotStr:'x²+x−2',  factors:['(x+1)','(x−1)','(x+2)'] },
+        '1': { rootFactor:'x−1', muls:[1,3,2],   sums:[1,3,2,0],   quot:[1,3,2],  quotStr:'x²+3x+2', factors:['(x−1)','(x+2)','(x+1)'] },
+      },
+    },
+    {
+      idx:3, eq:'x³−6x²+11x−6=0', poly:'x³−6x²+11x−6',
+      constTerm:-6, divisors:[-6,-3,-2,-1,1,2,3,6],
+      coeffs:[1,-6,11,-6], roots:[1,2,3], halfFilled:false,
+      validRoots:[1,2,3],
+      rootData:{
+        '1':{ rootFactor:'x−1', muls:[1,-5,6],  sums:[1,-5,6,0], quot:[1,-5,6], quotStr:'x²−5x+6', factors:['(x−1)','(x−2)','(x−3)'] },
+        '2':{ rootFactor:'x−2', muls:[2,-8,6],  sums:[1,-4,3,0], quot:[1,-4,3], quotStr:'x²−4x+3', factors:['(x−2)','(x−1)','(x−3)'] },
+        '3':{ rootFactor:'x−3', muls:[3,-9,6],  sums:[1,-3,2,0], quot:[1,-3,2], quotStr:'x²−3x+2', factors:['(x−3)','(x−1)','(x−2)'] },
+      },
+    },
+  ];
+
+  let eqaIdx = 0;
+  let chosenRoot = null; // 학생이 선택한 근
+
+  // ── 드롭 시스템 ──────────────────────────────
+  let dragVal = null, dragBlkId = null, dragFromZone = null, dragCorrect = true;
+
+  window.eqa5DragBlk = function(e, id, val) {
+    dragBlkId = id; dragFromZone = null; dragVal = val;
+    const el = document.getElementById(id);
+    dragCorrect = el ? el.dataset.correct !== '0' : true;
+  };
+  window.eqa5DragZone = function(e, zoneId, val) {
+    dragBlkId = null; dragFromZone = zoneId; dragVal = val;
+    const zone = document.getElementById(zoneId);
+    dragCorrect = zone ? zone.dataset.correct !== '0' : true;
+    e.stopPropagation();
+  };
+  window.eqa5DropZone = function(e, zoneId) {
+    e.preventDefault();
+    if (dragVal === null) return;
+    const zone = document.getElementById(zoneId); if (!zone) return;
+
+    // 이 자리 이전값 팔레트 복원
+    const prev = zone.dataset.val;
+    if (prev) restoreBlk(prev, zoneId);
+
+    // 출처가 다른 드롭존이면 비우기
+    if (dragFromZone && dragFromZone !== zoneId) {
+      const src = document.getElementById(dragFromZone);
+      if (src) { delete src.dataset.val; delete src.dataset.correct; src.innerHTML='?'; src.style.color='rgba(255,255,255,0.3)'; src.style.background='transparent'; src.style.borderColor=''; }
+    }
+
+    zone.dataset.val = dragVal;
+    zone.dataset.correct = dragCorrect ? '1' : '0';
+    if (dragCorrect) {
+      zone.innerHTML = `<span draggable="true" style="cursor:grab;font-weight:700;font-size:22px;color:#34d399;"
+        ondragstart="eqa5DragZone(event,'${zoneId}','${dragVal}')">${dragVal}</span>`;
+      zone.style.background='rgba(52,211,153,0.1)'; zone.style.borderColor='rgba(52,211,153,0.8)';
+    } else {
+      zone.innerHTML = `<span draggable="true" style="cursor:grab;font-weight:700;font-size:18px;color:#ff3860;"
+        ondragstart="eqa5DragZone(event,'${zoneId}','${dragVal}')">오답!</span>`;
+      zone.style.background='rgba(255,56,96,0.1)'; zone.style.borderColor='rgba(255,56,96,0.8)';
+    }
+
+    // 팔레트 블록 흐리게
+    if (dragBlkId) {
+      const blk = document.getElementById(dragBlkId);
+      if (blk) { blk.style.opacity='0.3'; blk.draggable=false; blk.dataset.used='1'; }
+    }
+    dragVal=null; dragBlkId=null; dragFromZone=null; dragCorrect=true;
+    afterDrop(zoneId);
+  };
+  window.eqa5DropPalette = function(e) {
+    e.preventDefault();
+    if (!dragFromZone) return;
+    const src = document.getElementById(dragFromZone);
+    if (src) { restoreBlk(dragVal, dragFromZone); delete src.dataset.val; delete src.dataset.correct; src.innerHTML='?'; src.style.color='rgba(255,255,255,0.3)'; src.style.background='transparent'; src.style.borderColor=''; }
+    dragVal=null; dragBlkId=null; dragFromZone=null; dragCorrect=true;
+  };
+  function restoreBlk(val, fromZoneId) {
+    let done = false;
+    document.querySelectorAll('.eqa5blk').forEach(b => {
+      if (!done && b.dataset.val===val && b.dataset.used==='1') {
+        b.style.opacity='1'; b.draggable=true; delete b.dataset.used; done=true;
+      }
+    });
+  }
+  function blk(id, label, val, color, correct) {
+    const c = color||'#34d399';
+    const isCorrect = correct === undefined ? true : correct;
+    return `<span class="eqa5blk" id="${id}" draggable="true" data-val="${val}" data-correct="${isCorrect?1:0}"
+      style="background:${c};color:#000;font-family:'JetBrains Mono',monospace;
+      font-weight:700;font-size:22px;padding:8px 18px;border-radius:8px;
+      cursor:grab;user-select:none;display:inline-block;margin:4px;"
+      ondragstart="eqa5DragBlk(event,'${id}','${val}')">${label}</span>`;
+  }
+  function dzone(id, hint) {
+    return `<span class="eqa5zone" id="${id}" data-val=""
+      style="display:inline-flex;align-items:center;justify-content:center;
+      min-width:90px;height:46px;border:2px dashed rgba(52,211,153,0.5);
+      border-radius:8px;color:rgba(255,255,255,0.3);font-size:22px;
+      padding:0 12px;vertical-align:middle;cursor:pointer;"
+      ondragover="event.preventDefault()" ondrop="eqa5DropZone(event,'${id}')">${hint||'?'}</span>`;
+  }
+  function palette(items) {
+    return `<div class="eqa5pal" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px;justify-content:center;
+      background:rgba(0,0,0,0.2);border-radius:8px;margin:8px 0;"
+      ondragover="event.preventDefault()" ondrop="eqa5DropPalette(event)">${items}</div>`;
+  }
+  function stepBox(label, html) {
+    return `<div class="eqa5step" style="margin-bottom:16px;padding:14px;
+      background:rgba(255,180,30,0.05);border:1px solid rgba(255,180,30,0.2);
+      border-radius:10px;animation:eqa5fade 0.4s ease;">
+      <div style="font-size:24px;color:rgba(255,255,255,0.7);font-family:'Outfit',sans-serif;font-weight:600;margin-bottom:8px;">${label}</div>
+      ${html}
+    </div>`;
+  }
+
+  // ── afterDrop: 단계별 정답 체크 ──────────────────
+  function afterDrop(zoneId) {
+    const q = EQA[eqaIdx];
+
+    // [2] 약수 대입
+    if (zoneId === 'z-root') {
+      const v = parseInt(document.getElementById('z-root')?.dataset.val||'');
+      const [a,b,c,d] = q.coeffs;
+      const result = a*v**3 + b*v**2 + c*v + d;
+      const anim = document.getElementById('sub-anim');
+      if (anim) {
+        const sign = x => x>=0?`+${x}`:String(x);
+        const ok = result===0;
+        anim.innerHTML = `x=${v} 대입: <span style="color:#ffcc44;">${a}(${v})³${sign(b)}(${v})²${sign(c)}(${v})${sign(d)}</span>
+          = <span style="color:${ok?'#ffeb3b':'#ff3860'};font-weight:700;">${result}</span>
+          ${ok?'0이 됩니다!':'0이 아니에요'}`;
+        if (ok) {
+          chosenRoot = v;
+          setTimeout(() => appendStep(q, 3), 1000);
+        }
+      }
+    }
+    // [3] 일차인수
+    else if (zoneId === 'z-fac') {
+      const rd = q.rootData[String(chosenRoot)];
+      const v = document.getElementById('z-fac')?.dataset.val;
+      if (v === rd.rootFactor) setTimeout(() => appendStep(q, 4), 400);
+    }
+    // [4] 조립제법 — 버튼으로 진행 (afterDrop 불필요)
+    // [5] 이차식
+    else if (zoneId === 'z-quot') {
+      const rd = q.rootData[String(chosenRoot)];
+      const v = document.getElementById('z-quot')?.dataset.val;
+      if (v === rd.quotStr) setTimeout(() => appendStep(q, 6), 400);
+    }
+    // [6] 세 일차인수
+    else if (['z-f0','z-f1','z-f2'].includes(zoneId)) {
+      const rd = q.rootData[String(chosenRoot)];
+      const f0 = document.getElementById('z-f0')?.dataset.val;
+      const f1 = document.getElementById('z-f1')?.dataset.val;
+      const f2 = document.getElementById('z-f2')?.dataset.val;
+      if (f0&&f1&&f2 && [f0,f1,f2].sort().join()===rd.factors.sort().join())
+        setTimeout(() => appendStep(q, 7), 400);
+    }
+    // [7] 세 해
+    else if (['z-r0','z-r1','z-r2'].includes(zoneId)) {
+      const r0 = document.getElementById('z-r0')?.dataset.val;
+      const r1 = document.getElementById('z-r1')?.dataset.val;
+      const r2 = document.getElementById('z-r2')?.dataset.val;
+      if (r0&&r1&&r2 && [r0,r1,r2].map(Number).sort((a,b)=>a-b).join()===
+          q.roots.slice().sort((a,b)=>a-b).join())
+        setTimeout(() => showComplete(q), 600);
+    }
+  }
+
+  // ── 정답보기: 정답을 채우고 다음 단계로 자동 진행 ──────
+  function eqa5FillZone(zoneId, val) {
+    const zone = document.getElementById(zoneId);
+    if (!zone) return;
+    zone.dataset.val = String(val);
+    zone.dataset.correct = '1';
+    zone.innerHTML = `<span draggable="true" style="cursor:grab;font-weight:700;font-size:22px;color:#34d399;"
+      ondragstart="eqa5DragZone(event,'${zoneId}','${val}')">${val}</span>`;
+    zone.style.background='rgba(52,211,153,0.1)'; zone.style.borderColor='rgba(52,211,153,0.8)';
+  }
+  function eqa5DimBlocksInStep(step, val) {
+    const box = document.getElementById(`eqs-${step}`);
+    if (!box) return;
+    box.querySelectorAll('.eqa5blk').forEach(b => {
+      if (String(b.dataset.val) === String(val)) { b.style.opacity='0.3'; b.draggable=false; b.dataset.used='1'; }
+    });
+  }
+
+  window.eqa5AnswerStep2 = function() {
+    const q = EQA[eqaIdx];
+    const v = q.validRoots[0];
+    eqa5FillZone('z-root', v);
+    eqa5DimBlocksInStep(2, v);
+    afterDrop('z-root');
+  };
+  window.eqa5AnswerStep3 = function() {
+    const q = EQA[eqaIdx];
+    const rd = q.rootData[String(chosenRoot)];
+    eqa5FillZone('z-fac', rd.rootFactor);
+    eqa5DimBlocksInStep(3, rd.rootFactor);
+    afterDrop('z-fac');
+  };
+  window.eqa5Step4InputChanged = function() {
+    const box = document.getElementById('eqs-4');
+    if (!box) return;
+    const btn = document.getElementById('eqs4-confirm-btn');
+    const inputs = box.querySelectorAll('input[type="number"]');
+    const allFilled = [...inputs].every(inp => inp.value.trim() !== '');
+    if (btn) {
+      btn.disabled = !allFilled;
+      btn.style.opacity = allFilled ? '1' : '0.4';
+      btn.style.cursor = allFilled ? 'pointer' : 'not-allowed';
+    }
+  };
+  window.eqa5CheckStep4 = function() {
+    const q = EQA[eqaIdx];
+    const rd = q.rootData[String(chosenRoot)];
+    const given = q.halfFilled ? {m:[1,0,0], s:[1,0,0,0]} : {m:[0,0,0], s:[0,0,0,0]};
+    const blanks = [];
+    given.m.forEach((g,i)=>{ if(!g) blanks.push(rd.muls[i]); });
+    given.s.forEach((g,i)=>{ if(!g) blanks.push(rd.sums[i]); });
+    const box = document.getElementById('eqs-4');
+    if (!box) return;
+    const inputs = box.querySelectorAll('input[type="number"]');
+    let allCorrect = true;
+    inputs.forEach((inp,i) => {
+      const ok = blanks[i] !== undefined && parseInt(inp.value) === blanks[i];
+      if (ok) {
+        inp.style.borderColor = '#34d399';
+        inp.style.color = '#34d399';
+        inp.classList.remove('shake');
+      } else {
+        allCorrect = false;
+        inp.style.borderColor = '#ff3860';
+        inp.style.color = '#ff3860';
+        inp.classList.remove('shake');
+        void inp.offsetWidth;
+        inp.classList.add('shake');
+      }
+    });
+    if (allCorrect) {
+      inputs.forEach(inp => inp.disabled = true);
+      const btn = document.getElementById('eqs4-confirm-btn');
+      if (btn) btn.disabled = true;
+      setTimeout(eqa5go5, 400);
+    }
+  };
+  window.eqa5AnswerStep4 = function() {
+    const q = EQA[eqaIdx];
+    const rd = q.rootData[String(chosenRoot)];
+    const given = q.halfFilled ? {m:[1,0,0], s:[1,0,0,0]} : {m:[0,0,0], s:[0,0,0,0]};
+    const blanks = [];
+    given.m.forEach((g,i)=>{ if(!g) blanks.push(rd.muls[i]); });
+    given.s.forEach((g,i)=>{ if(!g) blanks.push(rd.sums[i]); });
+    const box = document.getElementById('eqs-4');
+    if (box) {
+      const inputs = box.querySelectorAll('input[type="number"]');
+      inputs.forEach((inp,i) => {
+        if (blanks[i] !== undefined) { inp.value = blanks[i]; inp.style.borderColor='#34d399'; inp.style.color='#34d399'; }
+      });
+    }
+    eqa5go5();
+  };
+  window.eqa5AnswerStep5 = function() {
+    const q = EQA[eqaIdx];
+    const rd = q.rootData[String(chosenRoot)];
+    eqa5FillZone('z-quot', rd.quotStr);
+    eqa5DimBlocksInStep(5, rd.quotStr);
+    afterDrop('z-quot');
+  };
+  window.eqa5AnswerStep6 = function() {
+    const q = EQA[eqaIdx];
+    const rd = q.rootData[String(chosenRoot)];
+    ['z-f0','z-f1','z-f2'].forEach((zid,i) => { eqa5FillZone(zid, rd.factors[i]); eqa5DimBlocksInStep(6, rd.factors[i]); });
+    afterDrop('z-f0');
+  };
+  window.eqa5AnswerStep7 = function() {
+    const q = EQA[eqaIdx];
+    const sorted = q.roots.slice().sort((a,b)=>a-b);
+    ['z-r0','z-r1','z-r2'].forEach((zid,i) => { eqa5FillZone(zid, sorted[i]); eqa5DimBlocksInStep(7, sorted[i]); });
+    afterDrop('z-r0');
+  };
+
+  // ── 단계 HTML 생성 ────────────────────────────
+  function stepHTML(q, step) {
+    const rd = chosenRoot !== null ? q.rootData[String(chosenRoot)] : null;
+    const { poly, constTerm, divisors, coeffs, roots, halfFilled } = q;
+
+    if (step === 1) return stepBox('[1] 방정식', `
+      <div style="font-size:24px;font-weight:700;color:#fff;text-align:center;
+        font-family:'JetBrains Mono',monospace;padding:10px;">${q.eq.replace(/([+-]?\d+)(?==0)/,'<span style="color:#ff7a00;font-weight:900;">$1</span>')}</div>
+      <div style="font-size:18px;color:rgba(255,255,255,0.7);margin-top:8px;text-align:center;">
+        상수항 <strong style="color:#ff7a00;">${constTerm}</strong>의 약수:&nbsp;
+        ${divisors.map(d=>`<span style="display:inline-block;background:rgba(255,180,30,0.15);
+          border:1px solid rgba(255,180,30,0.4);color:#ffcc44;font-family:'JetBrains Mono',monospace;
+          font-weight:700;font-size:20px;padding:5px 14px;border-radius:7px;margin:2px;">${d}</span>`).join('')}
+      </div>
+      <button class="eqa-check-btn" onclick="this.disabled=true;eqa5go2()" style="margin-top:10px;">다음 →</button>
+    `);
+
+    if (step === 2) {
+      const blks = divisors.map((d,i)=>blk(`bd${i}`,String(d),String(d),'#6366f1')).join('');
+      return stepBox('[2] 상수항 약수 대입 <span style="color:#ffffff;font-size:15px;font-weight:600;margin-left:10px;">블록을 끌어다 놓으세요!</span>', `
+        <div style="font-size:22px;color:#e0e0f0;margin-bottom:10px;text-align:center;">
+          <span style="font-family:'JetBrains Mono',monospace;">${poly}</span> 에서<br>
+          <span style="font-family:'JetBrains Mono',monospace;">x =</span> ${dzone('z-root')} 를 대입했을 때 <strong style="color:#ffeb3b;">0이 됩니다!</strong>
+        </div>
+        ${palette(blks)}
+        <div style="text-align:right;margin-top:2px;">
+          <button class="eqa-answer-btn" onclick="eqa5AnswerStep2()">정답보기</button>
+        </div>
+        <div id="sub-anim" style="font-size:16px;color:rgba(255,255,255,0.6);font-family:'JetBrains Mono',monospace;min-height:28px;margin-top:4px;"></div>
+      `);
+    }
+
+    if (step === 3) return stepBox('[3] 인수 찾기', `
+      <div style="font-size:22px;color:#e0e0f0;font-family:'JetBrains Mono',monospace;margin-bottom:10px;text-align:center;">
+        ${poly} = ${dzone('z-fac')} × (이차식)
+      </div>
+      ${palette([
+        blk('bf0', rd.rootFactor, rd.rootFactor, '#6366f1', true),
+        blk('bf1', `x+${Math.abs(chosenRoot)+1}`, 'wrong1', '#6366f1', false),
+        blk('bf2', `x−${Math.abs(chosenRoot)+2}`, 'wrong2', '#6366f1', false),
+      ].sort(()=>Math.random()-0.5).join(''))}
+      <div style="text-align:right;margin-top:2px;">
+        <button class="eqa-answer-btn" onclick="eqa5AnswerStep3()">정답보기</button>
+      </div>
+    `);
+
+    if (step === 4) {
+      const given = halfFilled
+        ? {c:[1,1,1,1], m:[1,0,0], s:[1,0,0,0]}
+        : {c:[1,1,1,1], m:[0,0,0], s:[0,0,0,0]};
+      const cell = (val, g, color) => g
+        ? `<div style="width:46px;height:38px;background:${color}22;border:1px solid ${color}88;
+            color:${color};font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;
+            border-radius:6px;display:flex;align-items:center;justify-content:center;">${val}</div>`
+        : `<input type="number" placeholder="?" oninput="eqa5Step4InputChanged()" style="width:46px;height:38px;
+            background:rgba(0,0,0,0.4);border:1px solid rgba(255,180,30,0.35);
+            color:#e0e0f0;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;
+            border-radius:6px;text-align:center;outline:none;">`;
+      return stepBox('[4] 조립제법', `
+        <div style="font-size:20px;color:rgba(255,255,255,0.7);margin-bottom:8px;font-family:'JetBrains Mono',monospace;text-align:center;">
+          ${poly} ÷ (${rd.rootFactor}) &nbsp; 근 = ${chosenRoot}
+        </div>
+        <div style="display:flex;align-items:stretch;justify-content:center;font-family:'JetBrains Mono',monospace;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;padding-right:6px;font-size:18px;font-weight:700;color:#ffcc44;">${chosenRoot}</div>
+          <div style="border-left:2px solid #ffcc44;margin:0 8px;"></div>
+          <div>
+            <div style="display:flex;gap:6px;margin-bottom:4px;">${coeffs.map((v,i)=>cell(v,given.c[i],'#ffcc44')).join('')}</div>
+            <div style="display:flex;gap:6px;margin-bottom:3px;padding-left:52px;">${rd.muls.map((v,i)=>cell(v,given.m[i],'#fbbf24')).join('')}</div>
+            <div style="border-top:2px solid #ffcc44;margin:3px 0;"></div>
+            <div style="display:flex;gap:6px;">${rd.sums.map((v,i)=>cell(v,given.s[i],'#34d399')).join('')}</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
+          <button class="eqa-check-btn" id="eqs4-confirm-btn" disabled style="opacity:0.4;cursor:not-allowed;" onclick="eqa5CheckStep4()">확인</button>
+          <button class="eqa-answer-btn" onclick="eqa5AnswerStep4()">정답보기</button>
+        </div>
+      `);
+    }
+
+    if (step === 5) {
+      function wQ() {
+        const o=[[1,-1,0],[0,1,-1],[-1,0,1]][Math.floor(Math.random()*3)];
+        const [a,b,c]=rd.quot; const w=[a+o[0],b+o[1],c+o[2]];
+        const s1=w[1]>=0?'+':'−', a1=Math.abs(w[1]), s2=w[2]>=0?'+':'−', a2=Math.abs(w[2]);
+        const x2=w[0]===1?'x²':`${w[0]}x²`;
+        const xTerm = w[1]===0 ? '' : `${s1}${a1===1?'x':`${a1}x`}`;
+        return `${x2}${xTerm}${s2}${a2}`;
+      }
+      const opts=[rd.quotStr,wQ(),wQ()].sort(()=>Math.random()-0.5);
+      return stepBox('[5] 이차식 구하기', `
+        <div style="font-size:22px;color:#e0e0f0;font-family:'JetBrains Mono',monospace;margin-bottom:10px;text-align:center;">
+          ${poly} = (${rd.rootFactor}) × ${dzone('z-quot','이차식')}
+        </div>
+        ${palette(opts.map((o,i)=>blk(`bq${i}`,o,o,'#6366f1',o===rd.quotStr)).join(''))}
+        <div style="text-align:right;margin-top:2px;">
+          <button class="eqa-answer-btn" onclick="eqa5AnswerStep5()">정답보기</button>
+        </div>
+      `);
+    }
+
+    if (step === 6) {
+      const wrongF = rd.factors[0].startsWith('(x+')?`(x+${parseInt(rd.factors[0].match(/\d+/)[0])+1})`:`(x−${parseInt(rd.factors[0].match(/\d+/)[0])+1})`;
+      const allF = [...rd.factors, wrongF].sort(()=>Math.random()-0.5);
+      return stepBox('[6] 완전 인수분해', `
+        <div style="font-size:22px;color:#e0e0f0;font-family:'JetBrains Mono',monospace;margin-bottom:10px;text-align:center;">
+          ${poly} = ${dzone('z-f0','( )')} × ${dzone('z-f1','( )')} × ${dzone('z-f2','( )')}
+        </div>
+        ${palette(allF.map((f,i)=>blk(`bfi${i}`,f,f,'#6366f1',rd.factors.includes(f))).join(''))}
+        <div style="text-align:right;margin-top:2px;">
+          <button class="eqa-answer-btn" onclick="eqa5AnswerStep6()">정답보기</button>
+        </div>
+      `);
+    }
+
+    if (step === 7) {
+      const wrongR = roots.includes(0) ? roots[roots.length-1]+5 : 0;
+      const allR = [...roots, wrongR].sort(()=>Math.random()-0.5);
+      return stepBox('[7] 해 구하기', `
+        <div style="font-size:22px;color:#e0e0f0;font-family:'JetBrains Mono',monospace;margin-bottom:10px;text-align:center;">
+          x = ${dzone('z-r0')} &nbsp;또는&nbsp; x = ${dzone('z-r1')} &nbsp;또는&nbsp; x = ${dzone('z-r2')}
+        </div>
+        ${palette(allR.map((r,i)=>blk(`br${i}`,String(r),String(r),'#6366f1',roots.includes(r))).join(''))}
+        <div style="text-align:right;margin-top:2px;">
+          <button class="eqa-answer-btn" onclick="eqa5AnswerStep7()">정답보기</button>
+        </div>
+      `);
+    }
+    return '';
+  }
+
+  function showComplete(q) {
+    lockStep(7);
+    const wrap = document.getElementById('eqa-wrap'); if (!wrap) return;
+    const rootsStr = [...q.roots].sort((a,b)=>a-b)
+      .map(r=>`<span style="color:#ffeb3b;">x=${r}</span>`).join(' 또는 ');
+    const div = document.createElement('div');
+    div.style.cssText = 'margin-top:12px;padding:16px;background:rgba(52,211,153,0.1);border:1.5px solid #34d399;border-radius:10px;text-align:center;animation:eqa5fade 0.4s;';
+    div.innerHTML = `<div style="font-family:'JetBrains Mono',monospace;font-size:20px;color:#e0e0f0;line-height:2;">
+        ${q.poly} = ${q.rootData[String(chosenRoot)].factors.join('')} = 0<br>${rootsStr}
+      </div>
+      <div style="text-align:center;margin-top:14px;">
+        <button id="eqa-next-btn" class="eqa-next-btn" onclick="eqaNext()">다음 문제 →</button>
+      </div>`;
+    wrap.appendChild(div);
+    div.scrollIntoView({behavior:'smooth',block:'nearest'});
+    const popup = document.getElementById('eqa-correct-popup');
+        if (popup) {
+          popup.classList.add('show');
+          clearTimeout(popup._hideTimer);
+          popup._hideTimer = setTimeout(() => popup.classList.remove('show'), 900);
+        }
+    const nextBtn = document.getElementById('eqa-next-btn');
+    if (nextBtn) nextBtn.classList.add('show');
+  }
+
+  // 이전 단계 잠금: 다음 단계가 열리면 이전 단계는 수정 불가
+  function lockStep(step) {
+    const el = document.getElementById(`eqs-${step}`);
+    if (!el) return;
+    el.querySelectorAll('input,button').forEach(x => x.disabled = true);
+    el.querySelectorAll('.eqa5blk').forEach(x => { x.draggable = false; x.style.pointerEvents = 'none'; if (x.style.opacity !== '0.3') x.style.opacity = '0.5'; });
+    el.querySelectorAll('.eqa5zone').forEach(x => { x.style.pointerEvents = 'none'; });
+    el.style.opacity = '0.75';
+  }
+
+  // appendStep: 새 단계를 wrap 아래에 추가
+  window.appendStep = function(qOrIdx, step) {
+    const q = typeof qOrIdx === 'number' ? EQA[qOrIdx] : qOrIdx;
+    const wrap = document.getElementById('eqa-wrap'); if (!wrap) return;
+    if (document.getElementById(`eqs-${step}`)) return;
+    lockStep(step - 1);
+    const div = document.createElement('div');
+    div.id = `eqs-${step}`;
+    div.innerHTML = stepHTML(q, step);
+    wrap.appendChild(div);
+    div.scrollIntoView({behavior:'smooth',block:'nearest'});
+  };
+  // 버튼용 헬퍼 — window 스코프에서 eqaIdx 없이 호출 가능
+  window.eqa5go2 = function() { window.appendStep(eqaIdx, 2); };
+  window.eqa5go5 = function() { window.appendStep(eqaIdx, 5); };
+
+  function render() {
+    const wrap=document.getElementById('eqa-wrap'), endEl=document.getElementById('eqa-end'), progEl=document.getElementById('eqa-progress');
+    if (!wrap||!endEl||!progEl) return;
+    wrap.style.display=''; endEl.classList.remove('show');
+    chosenRoot = null;
+    wrap.innerHTML='';
+
+    progEl.innerHTML='';
+    EQA.forEach((_,i)=>{
+      const d=document.createElement('div');
+      d.className='eqa-dot'+(i<eqaIdx?' done':i===eqaIdx?' cur':'');
+      d.textContent=i+1;
+      d.addEventListener('click',()=>{ eqaIdx=i; render(); });
+      progEl.appendChild(d);
+    });
+    appendStep(EQA[eqaIdx], 1);
+  }
+
+  window.eqaNext = function() {
+    if (eqaIdx >= EQA.length-1) { eqaShowEnd(); return; }
+    eqaIdx++; render();
+  };
+  function eqaShowEnd() {
+    const wrap=document.getElementById('eqa-wrap'), endEl=document.getElementById('eqa-end'), progEl=document.getElementById('eqa-progress');
+    if (wrap)  wrap.style.display='none';
+    if (endEl) endEl.classList.add('show');
+    if (progEl) progEl.querySelectorAll('.eqa-dot').forEach(d=>{d.classList.add('done');d.classList.remove('cur');});
+  }
+  window.eqaRestart = function() { eqaIdx=0; render(); };
+
+})();
+
+/* ════════════════════════════════════
+   배경음악
+════════════════════════════════════ */
+const bgmMain = new Audio('sound/sound_1.mp3');
+bgmMain.loop = true; bgmMain.volume = 0.5;
+const bgmBoss = new Audio('sound/sound_2.mp3');
+bgmBoss.loop = true; bgmBoss.volume = 0.5;
+const bgmOutro = new Audio('sound/outromusic.mp3');
+bgmOutro.loop = true; bgmOutro.volume = 0.5;
+
+let musicMuted = false;
+let audioUnlocked = false;
+let outroActive = false;
+
+function currentBgm() {
+  if (outroActive) return bgmOutro;
+  return (typeof G !== 'undefined' && G.scene === 'boss') ? bgmBoss : bgmMain;
+}
+
+function playCurrentMusic() {
+  bgmMain.pause(); bgmBoss.pause(); bgmOutro.pause();
+  if (musicMuted) return;
+  currentBgm().play().catch(()=>{});
+}
+function stopAllMusic() {
+  bgmMain.pause(); bgmBoss.pause(); bgmOutro.pause();
+}
+function startOutroMusic() {
+  outroActive = true;
+  if (musicMuted) { bgmMain.pause(); bgmBoss.pause(); bgmOutro.pause(); return; }
+  const fadingOut = (typeof G !== 'undefined' && G.scene === 'boss') ? bgmBoss : bgmMain;
+  crossfadeAudio(fadingOut, bgmOutro, 1800);
+}
+function crossfadeAudio(fromAudio, toAudio, durationMs) {
+  const targetVol = 0.5;
+  toAudio.volume = 0;
+  toAudio.play().catch(()=>{});
+  const steps = 30;
+  const stepTime = durationMs / steps;
+  let i = 0;
+  const timer = setInterval(() => {
+    i++;
+    const p = i / steps;
+    fromAudio.volume = Math.max(0, targetVol * (1 - p));
+    toAudio.volume = Math.min(targetVol, targetVol * p);
+    if (i >= steps) {
+      clearInterval(timer);
+      fromAudio.pause();
+      fromAudio.volume = targetVol;
+    }
+  }, stepTime);
+}
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  playCurrentMusic();
+}
+document.addEventListener('keydown', unlockAudio, { once:true });
+document.addEventListener('pointerdown', unlockAudio, { once:true });
+
+function toggleMusic() {
+  musicMuted = !musicMuted;
+  const btn = document.getElementById('music-toggle-btn');
+  if (musicMuted) {
+    stopAllMusic();
+    if (btn) btn.classList.add('muted');
+  } else {
+    playCurrentMusic();
+    if (btn) btn.classList.remove('muted');
+  }
+}
+</script>
+<div id="eqa-correct-popup">정답입니다!</div>
+
+<div id="clear-flash"></div>
+<div id="clear-ring-wrap">
+  <div class="clear-ring" id="clear-ring-1"></div>
+  <div class="clear-ring" id="clear-ring-2"></div>
+</div>
+
+<!-- ══════════════════════════════════
+     학습 데이터 추적 (교사용 페이지 연동)
+     기존 게임 로직은 건드리지 않고, 이벤트/DOM 변화만 관찰해서 Firebase에 기록합니다.
+════════════════════════════════════ -->
+<script>
+(function(){
+  const STAGE_KEY = 'stage5';
+
+  function studentName() {
+    try { return localStorage.getItem('playerName') || null; } catch(e) { return null; }
+  }
+  function fbReady() { return !!(window.fbDb && window.fbUpdateDoc && window.fbDoc); }
+
+  function markCompleted(contentKey) {
+    const name = studentName();
+    if (!name || !fbReady()) return;
+    const field = {};
+    field[STAGE_KEY + '.' + contentKey + '.completed'] = true;
+    window.fbUpdateDoc(window.fbDoc(window.fbDb, 'students', name), field).catch(()=>{});
+  }
+  function markWrongQuestion(qNum) {
+    const name = studentName();
+    if (!name || !fbReady()) return;
+    const field = {};
+    field[STAGE_KEY + '.formula.wrongQuestions'] = window.fbArrayUnion(qNum);
+    window.fbUpdateDoc(window.fbDoc(window.fbDb, 'students', name), field).catch(()=>{});
+  }
+
+  // 공식배우기: fqaChoose에 추가된 신호 수신 (Q1은 제외, 1회 이상 오답만 기록)
+  window.addEventListener('fqa-answer', (e) => {
+    const { q, correct } = e.detail;
+    const qNum = q + 1;
+    if (!correct && qNum !== 1) markWrongQuestion(qNum);
+  });
+
+  // 완료 여부: 기존 DOM(class="show")을 그냥 지켜보기만 함 (무수정)
+  function watchCompletion(elId, contentKey) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    let done = false;
+    new MutationObserver(() => {
+      if (!done && el.classList.contains('show')) {
+        done = true;
+        markCompleted(contentKey);
+      }
+    }).observe(el, { attributes: true, attributeFilter: ['class'] });
+  }
+  watchCompletion('fqa-end', 'formula');
+  watchCompletion('eqa-end', 'example');
+
+  // 보스배틀: result-overlay가 뜨고 문구가 'CLEAR!'일 때만 완료 처리
+  const resultOverlay = document.getElementById('result-overlay');
+  if (resultOverlay) {
+    let bossDone = false;
+    new MutationObserver(() => {
+      if (resultOverlay.classList.contains('show')) {
+        const titleEl = document.getElementById('result-title');
+        if (!bossDone && titleEl && titleEl.textContent.trim() === 'STAGE CLEAR!') {
+          bossDone = true;
+          markCompleted('boss');
+        }
+      }
+    }).observe(resultOverlay, { attributes: true, attributeFilter: ['class'] });
+  }
+})();
+</script>
+
+</body>
+</html>

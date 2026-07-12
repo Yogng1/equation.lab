@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>삼차방정식 연구소</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@600;700&family=Jua&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; overflow:hidden; }
+body {
+  background-image: url('image/intro_background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color:#0a0612;
+  font-family:'Outfit',sans-serif;
+  user-select:none;
+  position:relative;
+}
+/* 배경 위 어둡게 깔아서 텍스트 가독성 확보 */
+#dim-layer {
+  position:fixed; inset:0; z-index:1; pointer-events:none;
+  background:radial-gradient(ellipse at center, rgba(10,6,18,0.25) 0%, rgba(10,6,18,0.75) 100%);
+  transition:background 0.6s;
+}
+
+/* ═══════════════ 공통: 마법진 버튼 ═══════════════ */
+.magic-btn {
+  position:relative;
+  font-family:'Orbitron',sans-serif; font-weight:700; font-size:15px; letter-spacing:4px;
+  color:#ffe9b0; background:rgba(20,10,30,0.55);
+  padding:16px 42px; border-radius:50px; cursor:pointer;
+  border:1.5px solid rgba(255,204,68,0.55);
+  box-shadow:0 0 18px rgba(168,85,247,0.35), inset 0 0 14px rgba(255,204,68,0.12);
+  text-transform:uppercase; overflow:visible;
+  transition:transform 0.2s, box-shadow 0.3s, color 0.3s;
+  z-index:2;
+}
+.magic-btn::before {
+  content:''; position:absolute; inset:-8px; border-radius:50px;
+  background:conic-gradient(from 0deg, transparent 0 92%, #ffcc44 96%, transparent 100%),
+             conic-gradient(from 180deg, transparent 0 92%, #a855f7 96%, transparent 100%);
+  opacity:0.8; animation:magicSpin 5s linear infinite;
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+          mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  pointer-events:none;
+}
+@keyframes magicSpin { to { transform:rotate(360deg); } }
+.magic-btn:hover {
+  transform:translateY(-2px);
+  color:#fff;
+  box-shadow:0 0 28px rgba(168,85,247,0.6), inset 0 0 18px rgba(255,204,68,0.2);
+}
+.magic-btn:active { transform:translateY(0px) scale(0.97); }
+
+/* ═══════════════ 화면1: 타이틀 ═══════════════ */
+#screen-title {
+  position:fixed; inset:0; z-index:5;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:34px;
+  opacity:1; transition:opacity 0.7s;
+}
+#screen-title.hide { opacity:0; pointer-events:none; }
+.lab-title {
+  font-family:'Orbitron',sans-serif; font-weight:900;
+  font-size:clamp(30px,6vw,58px); letter-spacing:10px; color:#fff; text-align:center;
+  text-shadow:0 0 20px rgba(255,204,68,0.55), 0 0 46px rgba(168,85,247,0.4);
+  animation:titleFloat 4.5s ease-in-out infinite;
+}
+@keyframes titleFloat { 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-8px); } }
+.lab-sub {
+  font-family:'Jua',sans-serif; font-size:clamp(13px,2vw,17px); letter-spacing:2px;
+  color:rgba(255,255,255,0.75);
+}
+
+/* ═══════════════ 화면2: 세계관(로어) ═══════════════ */
+#screen-lore {
+  position:fixed; inset:0; z-index:6;
+  display:none; align-items:center; justify-content:center;
+  opacity:0; transition:opacity 0.8s; cursor:pointer;
+  padding:0 24px;
+}
+#screen-lore.show { display:flex; opacity:1; }
+.lore-text {
+  font-family:'Jua',sans-serif; color:#f1eefc; text-align:center;
+  font-size:clamp(20px,3.2vw,30px); line-height:2.1;
+  max-width:780px;
+  text-shadow:0 0 18px rgba(168,85,247,0.3);
+  opacity:0; transform:translateY(10px);
+  transition:opacity 0.7s, transform 0.7s;
+}
+.lore-text.show { opacity:1; transform:translateY(0); }
+.lore-continue {
+  position:fixed; bottom:8%; left:50%; transform:translateX(-50%);
+  font-family:'Outfit',sans-serif; font-size:13px; letter-spacing:2px;
+  color:rgba(255,255,255,0.55);
+  animation:continueBlink 1.3s ease-in-out infinite;
+  opacity:0; transition:opacity 0.5s;
+}
+.lore-continue.show { opacity:1; }
+
+/* ═══════════════ 화면3: 이름 입력 ═══════════════ */
+#screen-name {
+  position:fixed; inset:0; z-index:7;
+  display:none; align-items:center; justify-content:center;
+  opacity:0; transition:opacity 0.5s;
+}
+#screen-name.show { display:flex; opacity:1; }
+.name-box {
+  position:relative;
+  width:min(440px,88vw); padding:40px 34px 34px;
+  background:linear-gradient(160deg, rgba(20,12,32,0.94) 0%, rgba(30,14,40,0.94) 55%, rgba(18,10,26,0.94) 100%);
+  border-radius:18px;
+  border:1.5px solid rgba(255,204,68,0.4);
+  box-shadow:0 0 50px rgba(168,85,247,0.25), 0 12px 40px rgba(0,0,0,0.5);
+  text-align:center;
+}
+.name-box::before {
+  content:''; position:absolute; inset:-2px; border-radius:18px; z-index:-1;
+  background:conic-gradient(from 0deg, #ffcc44, #a855f7, #00f0ff, #ffcc44);
+  opacity:0.35; filter:blur(6px);
+}
+.name-label {
+  font-family:'Jua',sans-serif; font-size:18px; color:#ffe9b0; margin-bottom:20px; line-height:1.7;
+}
+#name-input {
+  width:100%; padding:15px 16px; font-size:19px; text-align:center;
+  font-family:'Outfit',sans-serif; font-weight:600; color:#fff;
+  background:rgba(0,0,0,0.55); border:1.5px solid rgba(255,204,68,0.45);
+  border-radius:10px; outline:none; margin-bottom:24px; letter-spacing:1px;
+  transition:border-color 0.2s, box-shadow 0.2s;
+}
+#name-input:focus { border-color:#ffcc44; box-shadow:0 0 14px rgba(255,204,68,0.35); }
+#name-input.shake { animation:shakeInput 0.35s; border-color:#ff3860; }
+@keyframes shakeInput {
+  0%,100%{ transform:translateX(0); } 25%{ transform:translateX(-8px); }
+  75%{ transform:translateX(8px); }
+}
+
+/* ═══════════════ 화면4: 대화 ═══════════════ */
+#screen-dialogue {
+  position:fixed; inset:0; z-index:8;
+  display:none; opacity:0; transition:opacity 0.6s; cursor:pointer;
+}
+#screen-dialogue.show { display:block; opacity:1; }
+
+.dlg-box {
+  position:absolute; width:min(747px,61vw);
+  padding:35px 40px; border-radius:21px;
+  background:rgba(12,7,20,0.85); backdrop-filter:blur(4px);
+  opacity:0; transform:translateY(14px); transition:opacity 0.35s, transform 0.35s;
+}
+.dlg-box.show { opacity:1; transform:translateY(0); }
+
+#dlg-demon {
+  top:8%; left:5%;
+  border:2px solid rgba(168,85,247,0.55);
+  box-shadow:0 0 34px rgba(168,85,247,0.28);
+}
+#dlg-player {
+  bottom:9%; right:5%;
+  border:2px solid rgba(255,204,68,0.5);
+  box-shadow:0 0 34px rgba(255,204,68,0.22);
+}
+.dlg-inner { display:flex; align-items:flex-start; gap:27px; }
+.portrait-frame {
+  width:112px; height:112px; border-radius:50%; overflow:hidden; flex-shrink:0;
+  position:relative;
+}
+#dlg-player-frame {
+  border:3px solid rgba(255,204,68,0.65);
+  box-shadow:0 0 16px rgba(255,204,68,0.4);
+  background:rgba(255,204,68,0.08);
+}
+#dlg-player-portrait {
+  width:100%; height:100%; object-fit:cover;
+  transform-origin:center 15%;
+  transform:scale(1.8);
+}
+#dlg-demon-frame {
+  border:3px solid rgba(168,85,247,0.85);
+  box-shadow:0 0 18px rgba(168,85,247,0.6), inset 0 0 12px rgba(0,0,0,0.6);
+  background:rgba(168,85,247,0.08);
+}
+#dlg-demon-portrait {
+  width:100%; height:100%; object-fit:cover;
+  transform-origin:center 15%;
+  transform:scale(1.8);
+  filter:brightness(0.35) blur(1px) saturate(0.6);
+  opacity:0.9;
+}
+.dlg-name {
+  font-family:'Orbitron',sans-serif; font-weight:700; font-size:19px; letter-spacing:3px;
+  margin-bottom:13px; text-transform:uppercase;
+}
+#dlg-demon .dlg-name { color:#c084fc; }
+#dlg-player .dlg-name { color:#ffcc44; }
+.dlg-text {
+  font-family:'Jua',sans-serif; font-size:29px; line-height:1.75; color:#f7f4ff;
+  min-height:3em;
+}
+.dlg-continue {
+  position:absolute; bottom:16px; right:24px;
+  font-family:'Outfit',sans-serif; font-size:16px; color:rgba(255,255,255,0.55);
+  letter-spacing:1px; animation:continueBlink 1.3s ease-in-out infinite;
+}
+@keyframes continueBlink { 0%,100%{opacity:0.35;} 50%{opacity:1;} }
+
+/* 페이드아웃 (마지막 전환) */
+#fade-out {
+  position:fixed; inset:0; z-index:50; background:#000; opacity:0;
+  pointer-events:none; transition:opacity 1.1s;
+}
+#fade-out.active { opacity:1; }
+
+@media (max-width:640px) {
+  #dlg-demon  { left:4%; width:63vw; }
+  #dlg-player { right:4%; width:63vw; }
+  .dlg-box { padding:19px 17px; }
+  .dlg-text { font-size:17px; }
+  .dlg-name { font-size:12px; margin-bottom:8px; }
+  #dlg-player-frame, #dlg-demon-frame { width:60px; height:60px; }
+  .dlg-inner { gap:12px; }
+}
+.music-toggle {
+  position:fixed; top:16px; right:16px; z-index:60;
+  width:38px; height:38px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; font-family:'Orbitron',sans-serif;
+  background:rgba(0,0,0,0.5); border:2px solid rgba(255,180,30,0.5);
+  color:#ffb41e; cursor:pointer; transition:background 0.2s,color 0.2s,opacity 0.2s;
+}
+.music-toggle:hover { background:#ffb41e; color:#150c00; }
+.music-toggle.muted { opacity:0.4; }
+</style>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBtx1kzYEH2Z--dSbTz6Eld2g6ZzWGnlYc",
+    authDomain: "equation-lab-teacher.firebaseapp.com",
+    projectId: "equation-lab-teacher",
+    storageBucket: "equation-lab-teacher.firebasestorage.app",
+    messagingSenderId: "498077230441",
+    appId: "1:498077230441:web:bc7e1e067ec81a6e5e89f8"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // 다른(비-module) 스크립트에서 쓸 수 있도록 window에 노출
+  window.fbDb = db;
+  window.fbDoc = doc;
+  window.fbSetDoc = setDoc;
+  window.fbGetDoc = getDoc;
+  window.fbUpdateDoc = updateDoc;
+  window.fbArrayUnion = arrayUnion;
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+</head>
+<body>
+
+<div id="dim-layer"></div>
+
+<!-- ═══ 화면1: 타이틀 ═══ -->
+<button id="music-toggle-btn" class="music-toggle" onclick="toggleMusic()" title="배경음악 켜기/끄기">♪</button>
+
+<div id="screen-title">
+  <div class="lab-title">삼차방정식 연구소</div>
+  <div class="lab-sub">봉인된 힘, 흩어진 다섯 조각의 이야기</div>
+  <button class="magic-btn" id="start-btn" onclick="goToLoreScreen()">시작하기</button>
+  <a href="teacher.html" style="position:absolute; bottom:20px; right:24px;
+    font-family:'Outfit',sans-serif; font-size:12px; letter-spacing:0.5px;
+    color:rgba(255,255,255,0.35); text-decoration:none; transition:color 0.2s;"
+    onmouseover="this.style.color='rgba(200,170,255,0.75)';"
+    onmouseout="this.style.color='rgba(255,255,255,0.35)';">연구소 관제실 →</a>
+</div>
+
+<!-- ═══ 화면2: 세계관(로어) ═══ -->
+<div id="screen-lore" onclick="advanceLore()">
+  <div class="lore-text" id="lore-text"></div>
+  <div class="lore-continue" id="lore-continue">클릭하여 계속 ▶</div>
+</div>
+
+<!-- ═══ 화면3: 이름 입력 ═══ -->
+<div id="screen-name">
+  <div class="name-box">
+    <div class="name-label">연구소에 처음 들어서는 당신,<br>이름을 알려주세요.</div>
+    <input id="name-input" type="text" placeholder="이름 입력" maxlength="10" autocomplete="off"/>
+    <button class="magic-btn" style="padding:13px 34px;font-size:13px;" onclick="submitName()">입장하기</button>
+  </div>
+</div>
+
+<!-- ═══ 화면4: 대화 ═══ -->
+<div id="screen-dialogue" onclick="advanceDialogue()">
+  <div class="dlg-box" id="dlg-demon">
+    <div class="dlg-inner">
+      <div class="portrait-frame" id="dlg-demon-frame"><img id="dlg-demon-portrait" src="image/demon_portrait.png" alt=""/></div>
+      <div style="flex:1;">
+        <div class="dlg-name">???</div>
+        <div class="dlg-text" id="dlg-demon-text"></div>
+      </div>
+    </div>
+    <div class="dlg-continue">클릭하여 계속 ▶</div>
+  </div>
+  <div class="dlg-box" id="dlg-player">
+    <div class="dlg-inner">
+      <div class="portrait-frame" id="dlg-player-frame"><img id="dlg-player-portrait" src="image/player_portrait.png" alt=""/></div>
+      <div style="flex:1;">
+        <div class="dlg-name" id="dlg-player-name">나</div>
+        <div class="dlg-text" id="dlg-player-text"></div>
+      </div>
+    </div>
+    <div class="dlg-continue">클릭하여 계속 ▶</div>
+  </div>
+</div>
+
+<div id="fade-out"></div>
+
+<script>
+/* ══════════════ 화면1→2: 로어 진입 ══════════════ */
+function goToLoreScreen() {
+  document.getElementById('screen-title').classList.add('hide');
+  setTimeout(() => {
+    document.getElementById('screen-lore').classList.add('show');
+    loreIdx = -1;
+    advanceLore();
+  }, 550);
+}
+
+/* ══════════════ 로어(세계관) 순차 표시 ══════════════ */
+const LORE = [
+  '수 세기 전, 이 연구소는 인수분해의 지혜로<br>혼돈의 마왕을 봉인했다.',
+  '다섯 개의 봉인석에 새겨진 힘이<br>오랫동안 그를 억눌러 왔지만...',
+  '시간이 흐르며 봉인은 조금씩<br>금이 가기 시작했고,',
+  '지금, 그 균열 사이로<br>무언가가 다시 깨어나고 있다.',
+];
+let loreIdx = -1;
+
+function advanceLore() {
+  loreIdx++;
+  const textEl = document.getElementById('lore-text');
+  const contEl = document.getElementById('lore-continue');
+
+  if (loreIdx >= LORE.length) {
+    document.getElementById('screen-lore').classList.remove('show');
+    setTimeout(goToNameScreen, 500);
+    return;
+  }
+
+  textEl.classList.remove('show');
+  contEl.classList.remove('show');
+  setTimeout(() => {
+    textEl.innerHTML = LORE[loreIdx];
+    textEl.classList.add('show');
+    setTimeout(() => contEl.classList.add('show'), 400);
+  }, 260);
+}
+
+/* ══════════════ 화면2→3: 이름 입력 ══════════════ */
+function goToNameScreen() {
+  const s = document.getElementById('screen-name');
+  s.classList.add('show');
+  document.getElementById('name-input').focus();
+}
+
+document.getElementById('name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitName();
+});
+
+let playerName = '';
+
+async function resolveUniqueName(baseName) {
+  if (!window.fbDb) return baseName; // Firebase 준비 전이면 그냥 원래 이름 사용
+
+  async function findUnique() {
+    let candidate = baseName;
+    let n = 2;
+    while (n < 50) { // 무한루프 방지 안전장치
+      const snap = await window.fbGetDoc(window.fbDoc(window.fbDb, 'students', candidate));
+      if (!snap.exists()) break;
+      candidate = `${baseName}(${n})`;
+      n++;
+    }
+    return candidate;
+  }
+
+  // Firebase 응답이 오래 걸리거나 실패해도 절대 화면이 멈추지 않도록 타임아웃 처리
+  const timeout = new Promise(resolve => setTimeout(() => resolve(baseName), 3000));
+  try {
+    return await Promise.race([findUnique(), timeout]);
+  } catch (e) {
+    return baseName;
+  }
+}
+
+function submitName() {
+  const input = document.getElementById('name-input');
+  const val = input.value.trim();
+  if (!val) {
+    input.classList.remove('shake');
+    void input.offsetWidth;
+    input.classList.add('shake');
+    input.focus();
+    return;
+  }
+
+  // 화면은 즉시 넘어감 — Firebase 확인은 기다리지 않음
+  playerName = val;
+  try { localStorage.setItem('playerName', playerName); } catch(e) {}
+
+  document.getElementById('screen-name').classList.remove('show');
+  setTimeout(startDialogue, 400);
+
+  // 이름 중복 확인 + Firestore 문서 생성은 백그라운드에서 조용히 처리
+  resolveUniqueName(val).then(finalName => {
+    if (finalName !== playerName) {
+      playerName = finalName;
+      try { localStorage.setItem('playerName', playerName); } catch(e) {}
+      const nameEl = document.getElementById('dlg-player-name');
+      if (nameEl) nameEl.textContent = playerName;
+    }
+    console.log('[fb-debug] window.fbDb 준비 여부:', !!window.fbDb);
+    if (window.fbDb) {
+      const emptyStage = () => ({ formula:{completed:false, wrongQuestions:[]}, example:{completed:false}, boss:{completed:false} });
+      console.log('[fb-debug] 저장 시도, 이름:', playerName);
+      window.fbSetDoc(window.fbDoc(window.fbDb, 'students', playerName), {
+        stage1: emptyStage(), stage2: emptyStage(), stage3: emptyStage(), stage4: emptyStage(), stage5: emptyStage(),
+        createdAt: Date.now()
+      }).then(() => {
+        console.log('[fb-debug] ✅ 저장 성공!');
+      }).catch(err => {
+        console.error('[fb-debug] ❌ 저장 실패:', err.code, err.message);
+      });
+    } else {
+      console.warn('[fb-debug] window.fbDb가 없어서 저장을 시도조차 못했음 (Firebase 모듈 로딩 실패 가능성)');
+    }
+  });
+}
+
+/* ══════════════ 대화 시스템 ══════════════ */
+function line(speaker, text) { return { speaker, text }; }
+
+function getScript() {
+  const n = playerName || '연구원';
+  return [
+    line('demon', '...누구냐. 오랜만에 느껴지는 기척이군.'),
+    line('player', `여긴... 목소리만 들리는데, 당신은 누구야?`),
+    line('demon', '나는 이 연구소 가장 깊은 곳에 봉인된 자다.<br>완전히 갇힌 건 아니지만 말이야.'),
+    line('demon', '내 힘의 조각들이 이미 다섯 개의 봉인석에<br>스며들고 있다.'),
+    line('player', '봉인석? 그게 무슨 소리야?'),
+    line('demon', '가서 직접 보아라. 인수분해의 지혜를<br>되찾을 수 있다면 말이지.'),
+    line('demon', `흥, 재미있겠군. 어디 한번 해보아라, <b>${n}</b>.`),
+    line('player', '...좋아. 내가 그 봉인, 다시 완성시켜줄게.'),
+  ];
+}
+
+let script = [];
+let dlgIdx = -1;
+
+function startDialogue() {
+  script = getScript();
+  dlgIdx = -1;
+  document.getElementById('dlg-player-name').textContent = playerName || '나';
+  document.getElementById('screen-dialogue').classList.add('show');
+  advanceDialogue();
+}
+
+function advanceDialogue() {
+  dlgIdx++;
+  if (dlgIdx >= script.length) { endIntro(); return; }
+
+  const cur = script[dlgIdx];
+  const demonBox  = document.getElementById('dlg-demon');
+  const playerBox = document.getElementById('dlg-player');
+
+  if (cur.speaker === 'demon') {
+    demonBox.classList.add('show');
+    document.getElementById('dlg-demon-text').innerHTML = cur.text;
+  } else {
+    playerBox.classList.add('show');
+    document.getElementById('dlg-player-text').innerHTML = cur.text;
+  }
+}
+
+function endIntro() {
+  document.getElementById('fade-out').classList.add('active');
+  fadeOutAudio(bgmIntro, 1100);
+  setTimeout(() => { window.location.href = 'mainpage.html'; }, 1150);
+}
+function fadeOutAudio(audio, durationMs) {
+  const startVol = audio.volume;
+  const steps = 20;
+  const stepTime = durationMs / steps;
+  let i = 0;
+  const timer = setInterval(() => {
+    i++;
+    audio.volume = Math.max(0, startVol * (1 - i / steps));
+    if (i >= steps) { clearInterval(timer); audio.pause(); }
+  }, stepTime);
+}
+/* ════════════════════════════════════
+   배경음악
+════════════════════════════════════ */
+const bgmIntro = new Audio('sound/intromusic.mp3');
+bgmIntro.loop = true; bgmIntro.volume = 0.5;
+
+let musicMuted = false;
+let audioUnlocked = false;
+
+function tryPlayMusic() {
+  if (musicMuted) return;
+  bgmIntro.play().catch(()=>{});
+}
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  tryPlayMusic();
+}
+document.addEventListener('keydown', unlockAudio, { once:true });
+document.addEventListener('pointerdown', unlockAudio, { once:true });
+
+function toggleMusic() {
+  musicMuted = !musicMuted;
+  const btn = document.getElementById('music-toggle-btn');
+  if (musicMuted) {
+    bgmIntro.pause();
+    if (btn) btn.classList.add('muted');
+  } else {
+    tryPlayMusic();
+    if (btn) btn.classList.remove('muted');
+  }
+}
+</script>
+</body>
+</html>

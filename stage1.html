@@ -1,0 +1,3705 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Stage 1 — 완전제곱식</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@600;700&family=Jua&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; overflow:hidden; font-family:'Outfit',sans-serif; user-select:none; }
+canvas { display:block; }
+
+/* ── HUD ── */
+#hud {
+  position:fixed; top:0; left:0; right:0;
+  padding:16px 24px;
+  display:flex; align-items:center; gap:24px;
+  background:linear-gradient(180deg,rgba(0,0,0,0.9),transparent);
+  pointer-events:none; z-index:20;
+}
+.hud-block { display:flex; flex-direction:column; gap:5px; }
+.hud-label {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:3px; color:#888;
+}
+.bar-wrap {
+  width:180px; height:16px;
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.15);
+  position:relative; overflow:hidden;
+}
+.bar-fill { height:100%; transition:width 0.3s; position:relative; }
+.bar-fill::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent);
+  animation:sheen 2s infinite;
+}
+@keyframes sheen { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
+#player-hp-bar { background:linear-gradient(90deg,#ff3860,#ff6b8a); width:100%; }
+#boss-hp-bar   { background:linear-gradient(90deg,#7fff00,#ffb41e); width:100%; }
+#skill-bar     { background:linear-gradient(90deg,#ffcc44,#ffb41e); width:0%; }
+.hud-val {
+  font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700;
+  color:#fff; position:absolute; right:8px; top:50%; transform:translateY(-50%);
+}
+#skill-btn {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:2px; padding:9px 18px;
+  background:rgba(255,180,30,0.15); border:2px solid #ffcc44;
+  color:#ffcc44; cursor:pointer; pointer-events:all;
+  transition:all 0.2s; text-transform:uppercase; opacity:0.35;
+}
+#skill-btn.ready {
+  opacity:1; background:rgba(255,180,30,0.3);
+  box-shadow:0 0 16px rgba(255,180,30,0.5),3px 3px 0 #ffb41e;
+  animation:skillPulse 1s infinite;
+}
+@keyframes skillPulse {
+  0%,100%{box-shadow:0 0 16px rgba(255,180,30,0.5),3px 3px 0 #ffb41e;}
+  50%{box-shadow:0 0 30px rgba(255,180,30,0.8),3px 3px 0 #ffb41e;}
+}
+#combo {
+  position:fixed; top:90px; left:50%; transform:translateX(-50%);
+  font-family:'Orbitron',sans-serif; font-weight:900; font-size:18px;
+  letter-spacing:3px; color:#ffeb3b;
+  text-shadow:0 0 16px rgba(255,235,59,0.9);
+  pointer-events:none; z-index:20; opacity:0; transition:opacity 0.3s;
+}
+#combo.show { opacity:1; }
+#controls-hint {
+  position:fixed; bottom:0; left:0; right:0; height:80px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Orbitron',sans-serif; font-size:18px; letter-spacing:3px;
+  color:rgba(255,255,255,0.9); pointer-events:none; z-index:20; white-space:nowrap;
+}
+
+.back-to-main {
+  position:fixed; top:16px; right:16px; z-index:25;
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:2px; padding:8px 16px;
+  background:rgba(0,0,0,0.4); border:2px solid rgba(0,240,255,0.5);
+  color:#ffb41e; text-decoration:none; cursor:pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.back-to-main:hover { background:#ffb41e; color:#150c00; }
+
+/* ── 팝업 공통 ── */
+.popup-overlay {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.82); backdrop-filter:blur(8px);
+  display:flex; align-items:center; justify-content:center;
+  z-index:50; opacity:0; visibility:hidden; pointer-events:none; transition:opacity 0.3s, visibility 0s 0.3s;
+}
+.popup-overlay.open { opacity:1; visibility:visible; pointer-events:all; transition:opacity 0.3s; }
+.popup {
+  background:#150c00;
+  border:3px solid var(--popup-color,#ffb41e);
+  box-shadow:0 0 60px var(--popup-glow,rgba(255,180,30,0.3)), 6px 6px 0 rgba(0,0,0,0.5);
+  width:min(600px,93vw); max-height:90vh; overflow-y:auto;
+  transform:scale(0.85); transition:transform 0.3s cubic-bezier(.2,.9,.3,1.1);
+}
+.popup-overlay.open .popup { transform:scale(1); }
+.popup-header {
+  padding:22px 28px 18px;
+  border-bottom:2px solid rgba(255,255,255,0.08);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.popup-badge {
+  font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:4px; padding:5px 12px; margin-bottom:10px;
+  display:inline-block; text-transform:uppercase;
+}
+.popup-title {
+  font-family:'Orbitron',sans-serif; font-weight:900;
+  font-size:clamp(18px,4vw,26px); letter-spacing:2px; color:#fff;
+}
+.popup-close {
+  background:transparent; border:2px solid rgba(255,255,255,0.2);
+  color:rgba(255,255,255,0.95); width:40px; height:40px;
+  font-size:18px; cursor:pointer; transition:all 0.2s;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'JetBrains Mono',monospace; flex-shrink:0;
+}
+.popup-close:hover { border-color:#ffb41e; color:#ffb41e; }
+.popup-body { padding:28px; }
+
+/* 튜토리얼 팝업 */
+#tutorial-popup { --popup-color:#ffcc44; --popup-glow:rgba(255,180,30,0.3); }
+
+.tut-section {
+  margin-bottom:22px;
+}
+.tut-section-title {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:3px; color:#ffcc44; margin-bottom:12px; text-transform:uppercase;
+}
+.key-row {
+  display:flex; align-items:center; gap:12px; margin-bottom:10px;
+  font-size:15px; color:#b8b8d4; line-height:1.5;
+}
+.key-badge {
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px;
+  background:rgba(0,0,0,0.5); border:2px solid rgba(255,255,255,0.25);
+  color:#fff; padding:4px 10px; border-radius:4px;
+  box-shadow:0 3px 0 rgba(0,0,0,0.5); white-space:nowrap; flex-shrink:0;
+}
+.key-badge.cyan   { border-color:#ffb41e; color:#ffb41e; box-shadow:0 3px 0 rgba(255,180,30,0.3); }
+.key-badge.yellow { border-color:#ffeb3b; color:#ffeb3b; box-shadow:0 3px 0 rgba(255,235,59,0.3); }
+.key-badge.purple { border-color:#ffcc44; color:#ffcc44; box-shadow:0 3px 0 rgba(255,180,30,0.3); }
+.key-badge.red    { border-color:#ff3860; color:#ff3860; box-shadow:0 3px 0 rgba(255,56,96,0.3); }
+
+/* 연습 문제 영역 */
+.tut-practice {
+  background:rgba(0,0,0,0.4); border:2px solid #ffcc44;
+  padding:18px 20px; margin-top:4px;
+  box-shadow:0 0 16px rgba(255,180,30,0.15);
+}
+.tut-practice-label {
+  font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:3px; color:#ffcc44; margin-bottom:14px; text-transform:uppercase;
+}
+.tut-q {
+  font-family:'JetBrains Mono',monospace; font-weight:700;
+  font-size:clamp(18px,3.5vw,24px); color:#fff; text-align:center; margin-bottom:14px;
+}
+.tut-answer-row {
+  display:flex; align-items:center; justify-content:center;
+  gap:8px; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(16px,3vw,20px); color:#fff; flex-wrap:wrap; margin-bottom:14px;
+}
+.tut-blank {
+  background:rgba(0,0,0,0.6); border:2px solid #ffcc44;
+  color:#ffcc44; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(15px,3vw,20px); font-weight:700;
+  width:64px; padding:6px; text-align:center; outline:none;
+  transition:border-color 0.2s, box-shadow 0.2s;
+  -moz-appearance:textfield;
+}
+.tut-blank::-webkit-outer-spin-button,
+.tut-blank::-webkit-inner-spin-button { -webkit-appearance:none; }
+.tut-blank:focus { border-color:#ffeb3b; box-shadow:0 0 12px rgba(255,235,59,0.4); }
+.tut-blank.ok { border-color:#7fff00 !important; color:#7fff00 !important; box-shadow:0 0 14px rgba(127,255,0,0.5) !important; }
+.tut-blank.ng { border-color:#ff3860 !important; color:#ff3860 !important; animation:shake 0.3s; }
+.tut-hint { font-size:13px; color:#888; text-align:center; margin-bottom:10px; }
+.tut-check-btn {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:2px; padding:10px 24px; border:none; cursor:pointer;
+  background:#ffcc44; color:#150c00;
+  box-shadow:3px 3px 0 #ffb41e; transition:transform 0.15s;
+  text-transform:uppercase; display:block; margin:0 auto;
+}
+.tut-check-btn:hover { transform:translate(-2px,-2px); }
+.tut-fb { font-size:14px; font-weight:600; text-align:center; margin-top:10px; min-height:20px; }
+.tut-fb.ok { color:#7fff00; }
+.tut-fb.ng { color:#ff6b8a; }
+.tut-start-btn {
+  font-family:'Orbitron',sans-serif; font-size:13px; font-weight:700;
+  letter-spacing:3px; padding:14px 36px; border:none; cursor:pointer;
+  background:linear-gradient(135deg,#ffcc44,#ffb41e); color:#fff;
+  box-shadow:4px 4px 0 rgba(0,0,0,0.4); transition:transform 0.15s;
+  text-transform:uppercase; display:block; margin:24px auto 0;
+  opacity:0.4; pointer-events:none;
+  transition:opacity 0.4s, transform 0.15s;
+}
+.tut-start-btn.unlocked {
+  opacity:1; pointer-events:all;
+  box-shadow:4px 4px 0 rgba(0,0,0,0.4), 0 0 20px rgba(255,180,30,0.4);
+}
+.tut-start-btn.unlocked:hover { transform:translate(-2px,-2px); }
+.formula-box {
+  background:rgba(20,10,0,0.6); border:2px solid #ffb41e;
+  padding:24px; text-align:center; margin-bottom:18px;
+  box-shadow:0 0 20px rgba(255,180,30,0.18);
+}
+.formula-text {
+  font-family:'JetBrains Mono',monospace; font-weight:700;
+  font-size:clamp(16px,3.5vw,22px); color:#fff; line-height:1.9;
+}
+.formula-highlight { color:#ffeb3b; }
+.explain-item {
+  display:flex; gap:14px; padding:14px 18px;
+  background:rgba(0,0,0,0.3); border-left:3px solid #ffb41e;
+  margin-bottom:10px; font-size:15px; color:#b8b8d4; line-height:1.65;
+}
+.explain-item strong { color:#fff; display:block; margin-bottom:3px; }
+
+/* 예제 팝업 */
+#example-popup { --popup-color:#ffeb3b; --popup-glow:rgba(255,235,59,0.3); }
+.step-box {
+  padding:16px 20px; margin-bottom:12px;
+  background:rgba(0,0,0,0.35); border-left:4px solid #ffeb3b;
+}
+.step-num {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:3px; color:#ffeb3b; margin-bottom:8px;
+}
+.step-content {
+  font-family:'JetBrains Mono',monospace; font-size:16px;
+  color:#fff; line-height:1.85;
+}
+.step-note { font-family:'Outfit',sans-serif; font-size:14px; color:#b8b8d4; margin-top:5px; }
+
+/* 팝업 공통 버튼 */
+.popup-btn {
+  font-family:'Orbitron',sans-serif; font-size:12px; font-weight:700;
+  letter-spacing:2px; padding:12px 28px; border:none; cursor:pointer;
+  transition:transform 0.15s, box-shadow 0.15s; text-transform:uppercase;
+}
+.popup-btn:hover { transform:translate(-2px,-2px); }
+
+/* ── 보스 씬 (전체화면) ── */
+#boss-scene {
+  position:fixed; inset:0; z-index:60;
+  display:none; flex-direction:column;
+  background:#030612;
+}
+#boss-scene.active { display:flex; }
+
+/* canvas가 패널 위 영역만 차지 — absolute 제거, flex:1로 */
+#boss-canvas { display:block; width:100%; flex:1; min-height:0; }
+
+/* 보스씬 HUD */
+#boss-hud-bar {
+  position:absolute; top:0; left:0; right:0;
+  padding:16px 24px;
+  display:flex; align-items:center; gap:20px;
+  background:linear-gradient(180deg,rgba(0,0,0,0.95),transparent);
+  z-index:10; pointer-events:none;
+}
+.bhp-block { display:flex; flex-direction:column; gap:5px; flex:1; max-width:260px; }
+.bhp-label {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:3px;
+}
+.bhp-bar-wrap {
+  height:18px; background:rgba(255,255,255,0.08);
+  border:2px solid rgba(255,255,255,0.15); position:relative; overflow:hidden;
+}
+.bhp-fill { height:100%; transition:width 0.35s; }
+#b-player-fill { background:linear-gradient(90deg,#ff3860,#ff6b8a); width:100%; }
+#b-boss-fill   { background:linear-gradient(90deg,#7fff00,#ffb41e); width:100%; }
+.bhp-val {
+  font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700;
+  color:#fff; position:absolute; right:8px; top:50%; transform:translateY(-50%);
+}
+#boss-skill-btn {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:2px; padding:10px 20px;
+  background:rgba(255,180,30,0.15); border:2px solid rgba(255,180,30,0.3);
+  color:rgba(255,180,30,0.4); cursor:not-allowed; pointer-events:all;
+  transition:all 0.2s; text-transform:uppercase;
+}
+#boss-skill-btn.ready {
+  background:rgba(255,180,30,0.35);
+  border:2px solid #ffcc44;
+  color:#fff;
+  cursor:pointer;
+  box-shadow:0 0 20px rgba(255,180,30,0.7), 3px 3px 0 #ffb41e,
+             inset 0 0 12px rgba(255,180,30,0.2);
+  animation:bossSkillPulse 0.8s infinite;
+}
+@keyframes bossSkillPulse {
+  0%,100% {
+    box-shadow:0 0 20px rgba(255,180,30,0.7), 3px 3px 0 #ffb41e;
+    transform:scale(1);
+  }
+  50% {
+    box-shadow:0 0 36px rgba(255,180,30,1), 3px 3px 0 #ffb41e, 0 0 60px rgba(255,180,30,0.4);
+    transform:scale(1.04);
+  }
+}
+#boss-skill-dots {
+  display:flex; gap:8px; align-items:center;
+}
+.sdot {
+  width:16px; height:16px; border-radius:50%;
+  border:2px solid rgba(255,180,30,0.3);
+  transition:all 0.3s;
+}
+.sdot.on { background:#ffcc44; border-color:#ffcc44; box-shadow:0 0 8px rgba(255,180,30,0.7); }
+#boss-skill-btn { display:none !important; }
+#boss-skill-ready-msg {
+  position:absolute; top:36%; left:50%; transform:translate(-50%,-50%);
+  font-family:'Orbitron',sans-serif; font-weight:700; font-size:clamp(15px,2.6vw,22px);
+  color:#fff; text-shadow:0 0 14px rgba(255,255,255,0.85), 0 0 26px rgba(255,180,30,0.6);
+  letter-spacing:0.5px; text-align:center; max-width:88%; word-break:keep-all;
+  z-index:32; pointer-events:none; display:none;
+}
+#boss-skill-ready-msg.show { display:block; animation:skillMsgBlink 0.7s infinite; }
+@keyframes skillMsgBlink { 0%,100%{opacity:1;} 50%{opacity:0.15;} }
+
+/* 문제 패널 — flex 마지막 자식, 캔버스 아래에 위치 */
+#boss-quiz-panel {
+  flex-shrink:0;
+  background:rgba(5,5,20,0.97);
+  border-top:3px solid #ff3860;
+  box-shadow:0 -10px 40px rgba(255,56,96,0.25);
+  padding:10px 24px 14px;
+  z-index:10;
+  pointer-events:all;
+}
+#bq-question {
+  font-family:'JetBrains Mono',monospace; font-weight:700;
+  font-size:clamp(20px,3.5vw,30px); color:#fff; text-align:center; margin-bottom:8px;
+}
+#bq-sub { display:none; }
+#bq-answer-row {
+  display:flex; align-items:center; justify-content:center;
+  gap:8px; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(16px,3vw,22px); color:#fff; flex-wrap:wrap; margin-bottom:14px;
+}
+.bblank {
+  background:rgba(0,0,0,0.7); border:2px solid #ff3860;
+  color:#ff6b8a; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(16px,3vw,22px); font-weight:700;
+  width:70px; padding:7px; text-align:center; outline:none;
+  transition:border-color 0.2s, box-shadow 0.2s;
+  -moz-appearance:textfield;
+}
+.bblank::-webkit-outer-spin-button,
+.bblank::-webkit-inner-spin-button { -webkit-appearance:none; }
+.bblank:focus { border-color:#ffeb3b; box-shadow:0 0 12px rgba(255,235,59,0.4); }
+.bblank.ok { border-color:#7fff00 !important; color:#7fff00 !important; box-shadow:0 0 14px rgba(127,255,0,0.5) !important; }
+.bblank.ng { border-color:#ff3860 !important; color:#ff3860 !important; animation:shake 0.3s; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+.bq-mc-btn {
+  display:flex; align-items:center; gap:10px;
+  background:rgba(0,0,0,0.7); border:2px solid transparent;
+  color:#fff; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(15px,2.6vw,20px); font-weight:700;
+  padding:10px 18px; margin:4px; cursor:pointer;
+  transition:border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.bq-mc-btn:hover { transform:translate(-2px,-2px); border-color:#ffeb3b; box-shadow:0 0 12px rgba(255,235,59,0.3); }
+.bq-mc-btn:disabled { cursor:default; }
+.bq-mc-num {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:24px; height:24px; border-radius:50%;
+  background:rgba(255,255,255,0.12); border:1.5px solid rgba(255,255,255,0.6);
+  font-size:13px; color:#ffffff; flex-shrink:0;
+}
+.bq-mc-btn.ok { border-color:#7fff00 !important; color:#7fff00 !important; box-shadow:0 0 14px rgba(127,255,0,0.5) !important; }
+.bq-mc-btn.ok .bq-mc-num { background:rgba(127,255,0,0.25); border-color:#7fff00; color:#7fff00; }
+.bq-mc-btn.ng { border-color:#ff3860 !important; animation:shake 0.3s; }
+#bq-btn-row { display:flex; gap:10px; justify-content:center; }
+.bq-btn {
+  font-family:'Orbitron',sans-serif; font-size:12px; font-weight:700;
+  letter-spacing:2px; padding:11px 26px; border:none; cursor:pointer;
+  transition:transform 0.15s, box-shadow 0.15s; text-transform:uppercase;
+}
+.bq-attack { background:#ff3860; color:#fff; box-shadow:3px 3px 0 #7fff00; }
+.bq-attack:hover { transform:translate(-2px,-2px); box-shadow:5px 5px 0 #7fff00; }
+#bq-feedback {
+  font-size:14px; font-weight:600; text-align:center; margin-top:10px;
+  min-height:20px; transition:opacity 0.3s;
+}
+#bq-feedback.ok { color:#fff; }
+#bq-feedback.ng { color:#ff6b8a; }
+
+/* 패널 스킬 버튼 */
+.bq-skill-panel {
+  background: rgba(255,180,30,0.08);
+  border: 2px solid rgba(255,180,30,0.25) !important;
+  color: rgba(255,180,30,0.35) !important;
+  box-shadow: none !important;
+  cursor: not-allowed;
+  position: relative;
+  display: flex; align-items: center; gap: 8px;
+  transition: all 0.25s !important;
+}
+.bq-skill-panel.ready {
+  background: rgba(255,180,30,0.22) !important;
+  border: 2px solid #ffcc44 !important;
+  color: #fff !important;
+  cursor: pointer;
+  box-shadow: 0 0 24px rgba(255,180,30,0.6), 3px 3px 0 #ffb41e,
+              inset 0 0 14px rgba(255,180,30,0.15) !important;
+  animation: panelSkillPulse 0.85s infinite;
+}
+@keyframes panelSkillPulse {
+  0%,100% { box-shadow: 0 0 24px rgba(255,180,30,0.6), 3px 3px 0 #ffb41e; transform: scale(1); }
+  50%     { box-shadow: 0 0 44px rgba(255,180,30,1),   3px 3px 0 #ffb41e, 0 0 70px rgba(255,180,30,0.5); transform: scale(1.05); }
+}
+
+/* Q 뱃지 */
+.q-key-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; font-weight: 700;
+  border: 1.5px solid currentColor;
+  padding: 1px 6px; border-radius: 3px;
+  opacity: 0.8; letter-spacing: 1px;
+}
+
+/* 패널 콤보 닷 */
+#panel-skill-dots-wrap { display: flex; gap: 5px; align-items: center; }
+.psdot {
+  display: inline-block;
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 1.5px solid rgba(255,180,30,0.3);
+  transition: all 0.3s;
+}
+.psdot.on {
+  background: #ffcc44; border-color: #ffcc44;
+  box-shadow: 0 0 8px rgba(255,180,30,0.9);
+}
+
+/* ── 튜토리얼 팝업 ── */
+#tutorial-overlay {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.88); backdrop-filter:blur(10px);
+  display:none; align-items:center; justify-content:center;
+  z-index:200;
+  transition:opacity 0.3s;
+}
+
+#tutorial-box {
+  position:relative;
+  background:#150c00;
+  border:3px solid #ffcc44;
+  box-shadow:0 0 60px rgba(255,180,30,0.35), 6px 6px 0 rgba(0,0,0,0.5);
+  width:min(760px,94vw); max-height:90vh; overflow-y:auto;
+  transform:scale(1); transition:transform 0.3s cubic-bezier(.2,.9,.3,1.1);
+}
+#tut-close-btn {
+  position:absolute; top:14px; right:14px; z-index:5;
+  width:32px; height:32px; border:2px solid rgba(255,255,255,0.3); border-radius:50%;
+  background:rgba(0,0,0,0.4); color:rgba(255,255,255,0.7);
+  font-size:16px; font-weight:700; cursor:pointer; line-height:1; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  transition:background 0.2s,color 0.2s,border-color 0.2s;
+}
+#tut-close-btn:hover { background:#ff3860; color:#fff; border-color:#ff3860; }
+
+.tut-header {
+  padding:20px 26px 16px;
+  border-bottom:2px solid rgba(255,255,255,0.07);
+}
+.tut-badge {
+  font-family:'Orbitron',sans-serif; font-size:9px; font-weight:700;
+  letter-spacing:4px; color:#000; background:#ffcc44;
+  display:inline-block; padding:4px 12px; margin-bottom:10px;
+  box-shadow:2px 2px 0 #ffb41e; text-transform:uppercase;
+}
+.tut-title {
+  font-family:'Orbitron',sans-serif; font-weight:900;
+  font-size:clamp(18px,4vw,24px); letter-spacing:2px; color:#fff;
+}
+.tut-body { padding:22px 26px 26px; }
+
+/* 조작 섹션 */
+.tut-section { margin-bottom:20px; }
+.tut-section-label {
+  font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:3px; color:#ffcc44; margin-bottom:10px; text-transform:uppercase;
+}
+.tut-row {
+  display:flex; align-items:center; gap:10px;
+  padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05);
+  font-size:14px; color:#b8b8d4;
+}
+.tut-row:last-child { border-bottom:none; }
+.kbd {
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:12px;
+  background:rgba(0,0,0,0.5); border:2px solid rgba(255,255,255,0.2);
+  color:#fff; padding:3px 10px; border-radius:4px;
+  box-shadow:0 3px 0 rgba(0,0,0,0.6); white-space:nowrap; flex-shrink:0;
+}
+.kbd.c { border-color:#ffb41e; color:#ffb41e; }
+.kbd.y { border-color:#ffeb3b; color:#ffeb3b; }
+.kbd.p { border-color:#ffcc44; color:#ffcc44; }
+.kbd.r { border-color:#ff3860; color:#ff3860; }
+
+/* 연습 박스 */
+.tut-practice {
+  background:rgba(0,0,0,0.4); border:2px solid #ffcc44;
+  padding:16px 18px; margin-top:4px;
+  box-shadow:0 0 16px rgba(255,180,30,0.12);
+}
+.tut-practice-label {
+  font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:3px; color:#ffcc44; margin-bottom:12px; text-transform:uppercase;
+}
+.tut-q {
+  font-family:'JetBrains Mono',monospace; font-weight:700;
+  font-size:clamp(16px,3.5vw,22px); color:#fff; text-align:center; margin-bottom:8px;
+}
+.tut-hint-text { font-size:12px; color:#666; text-align:center; margin-bottom:12px; letter-spacing:1px; }
+.tut-explain {
+  font-family:'Jua',sans-serif; font-size:20px; line-height:1.7; color:#ffcf7a;
+  text-align:center; margin-bottom:14px; padding:10px 12px;
+  background:rgba(255,180,30,0.08); border:1px solid rgba(255,180,30,0.3); border-radius:8px;
+}
+.tut-ans-row {
+  display:flex; align-items:center; justify-content:center;
+  gap:6px; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(15px,3vw,20px); color:#fff; flex-wrap:wrap; margin-bottom:14px;
+}
+.tut-blank {
+  background:rgba(0,0,0,0.6); border:2px solid #ffcc44;
+  color:#ffcc44; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(15px,3vw,20px); font-weight:700;
+  width:62px; padding:6px; text-align:center; outline:none;
+  transition:border-color 0.2s, box-shadow 0.2s;
+  -moz-appearance:textfield;
+}
+.tut-blank::-webkit-outer-spin-button,
+.tut-blank::-webkit-inner-spin-button { -webkit-appearance:none; }
+.tut-blank:focus { border-color:#ffeb3b; box-shadow:0 0 10px rgba(255,235,59,0.4); }
+.tut-blank.ok { border-color:#7fff00 !important; color:#7fff00 !important; box-shadow:0 0 12px rgba(127,255,0,0.5) !important; }
+.tut-blank.ng { border-color:#ff3860 !important; color:#ff3860 !important; animation:shake 0.3s; }
+.tut-check-btn {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:2px; padding:10px 24px; border:none; cursor:pointer;
+  background:#ffcc44; color:#150c00; box-shadow:3px 3px 0 #ffb41e;
+  transition:transform 0.15s; text-transform:uppercase; display:block; margin:0 auto;
+}
+.tut-check-btn:hover { transform:translate(-2px,-2px); }
+.tut-fb { font-size:14px; font-weight:600; text-align:center; margin-top:10px; min-height:18px; }
+.tut-fb.ok { color:#7fff00; }
+.tut-fb.ng { color:#ff6b8a; }
+.tut-btn-row { position:relative; display:flex; align-items:center; min-height:44px; margin-top:4px; }
+.tut-answer-btn {
+  position:absolute; right:0; margin-left:0;
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px;
+  padding:10px 20px; background:transparent; color:#00f0ff; border:2px solid #00f0ff;
+  cursor:pointer; transition: transform 0.15s, background 0.15s; text-transform:uppercase;
+}
+.tut-answer-btn:hover { background:rgba(0,240,255,0.15); transform: translate(-2px,-2px); }
+
+/* 입장 버튼 */
+#tut-enter-btn {
+  font-family:'Orbitron',sans-serif; font-size:13px; font-weight:700;
+  letter-spacing:3px; padding:14px 40px; border:none; cursor:pointer;
+  background:linear-gradient(135deg,#ffcc44,#ffb41e); color:#fff;
+  box-shadow:4px 4px 0 rgba(0,0,0,0.4); text-transform:uppercase;
+  display:block; margin:22px auto 0;
+  opacity:0.35; pointer-events:none;
+  transition:opacity 0.4s, transform 0.15s, box-shadow 0.15s;
+}
+#tut-enter-btn.on {
+  opacity:1; pointer-events:all;
+  box-shadow:4px 4px 0 rgba(0,0,0,0.4), 0 0 24px rgba(255,180,30,0.5);
+  animation:enterPulse 1.2s infinite;
+}
+#tut-enter-btn.on:hover { transform:translate(-2px,-2px); }
+@keyframes enterPulse {
+  0%,100%{ box-shadow:4px 4px 0 rgba(0,0,0,0.4), 0 0 20px rgba(255,180,30,0.4); }
+  50%    { box-shadow:4px 4px 0 rgba(0,0,0,0.4), 0 0 40px rgba(255,180,30,0.8), 0 0 60px rgba(255,180,30,0.3); }
+}
+#boss-intro {
+  position:fixed; inset:0; background:rgba(0,0,0,0.96);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  z-index:80; opacity:0; visibility:hidden; pointer-events:none; transition:opacity 0.5s, visibility 0s 0.5s;
+}
+#boss-intro.show { opacity:1; visibility:visible; pointer-events:all; transition:opacity 0.5s; }
+.boss-intro-sprite { font-size:90px; animation:bossFloat 1.8s ease-in-out infinite; }
+@keyframes bossFloat { 0%,100%{transform:translateY(0) scale(1);} 50%{transform:translateY(-14px) scale(1.06);} }
+.boss-intro-name {
+  font-family:'Orbitron',sans-serif; font-weight:900;
+  font-size:clamp(26px,5.5vw,44px); letter-spacing:4px;
+  color:#ff3860; text-shadow:0 0 30px rgba(255,56,96,0.8);
+  margin:20px 0 10px; animation:flickerIn 0.5s 0.5s both;
+}
+.boss-intro-sub {
+  font-family:'Orbitron',sans-serif; font-size:13px; letter-spacing:4px;
+  color:rgba(255,255,255,0.4); animation:flickerIn 0.5s 0.9s both;
+}
+@keyframes flickerIn {
+  0%{opacity:0;} 50%{opacity:1;} 60%{opacity:0;} 80%{opacity:1;} 100%{opacity:1;}
+}
+
+/* 결과 */
+#result-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.92);
+  backdrop-filter:blur(12px);
+  display:flex; align-items:center; justify-content:center;
+  z-index:100; opacity:0; visibility:hidden; pointer-events:none; transition:opacity 0.5s, visibility 0s 0.5s;
+}
+#result-overlay.show { opacity:1; visibility:visible; pointer-events:all; transition:opacity 0.5s; }
+.result-box {
+  text-align:center; padding:44px 36px;
+  border:3px solid var(--res-color,#7fff00);
+  box-shadow:0 0 60px var(--res-glow,rgba(127,255,0,0.3));
+  background:#150c00; width:min(500px,90vw);
+}
+.result-title {
+  font-family:'Orbitron',sans-serif; font-weight:900;
+  font-size:clamp(30px,7vw,52px); letter-spacing:3px;
+  color:var(--res-color,#7fff00);
+  text-shadow:0 0 24px var(--res-glow,rgba(127,255,0,0.5));
+  margin-bottom:14px;
+}
+.result-sub { font-size:16px; color:#b8b8d4; margin-bottom:30px; line-height:1.6; }
+.result-btn {
+  font-family:'Orbitron',sans-serif; font-size:13px; font-weight:700;
+  letter-spacing:3px; padding:14px 32px; border:none; cursor:pointer;
+  background:var(--res-color,#7fff00); color:#150c00;
+  box-shadow:4px 4px 0 rgba(0,0,0,0.4);
+  transition:transform 0.15s; text-transform:uppercase;
+}
+.result-btn:hover { transform:translate(-2px,-2px); }
+.result-btn-row { display:flex; flex-direction:column; gap:12px; align-items:center; }
+.result-btn-secondary {
+  background:transparent; color:var(--res-color,#7fff00);
+  border:2px solid var(--res-color,#7fff00); box-shadow:none;
+}
+.result-btn-secondary:hover { background:var(--res-color,#7fff00); color:#150c00; }
+
+/* 보스 격파 후 마왕과의 대화 */
+#post-boss-dlg {
+  position:fixed; inset:0; z-index:300; display:none;
+  background:rgba(5,3,10,0.55); cursor:pointer;
+}
+#post-boss-dlg.show { display:block; }
+.pbd-box {
+  position:absolute; width:min(747px,61vw); padding:35px 40px; border-radius:21px;
+  background:rgba(12,7,20,0.9); backdrop-filter:blur(4px);
+  opacity:0; transform:translateY(14px); transition:opacity 0.3s, transform 0.3s;
+}
+.pbd-box.show { opacity:1; transform:translateY(0); }
+#pbd-demon { top:10%; left:5%; border:2px solid rgba(168,85,247,0.55); box-shadow:0 0 34px rgba(168,85,247,0.28); }
+#pbd-player { bottom:10%; right:5%; border:2px solid rgba(255,204,68,0.5); box-shadow:0 0 34px rgba(255,204,68,0.22); }
+.pbd-name { font-family:'Orbitron',sans-serif; font-weight:700; font-size:19px; letter-spacing:3px; margin-bottom:13px; text-transform:uppercase; }
+#pbd-demon .pbd-name { color:#c084fc; }
+#pbd-player .pbd-name { color:#ffcc44; }
+.pbd-text { font-family:'Jua',sans-serif; font-size:29px; line-height:1.75; color:#f7f4ff; min-height:3em; }
+.pbd-continue { position:absolute; bottom:16px; right:24px; font-family:'Outfit',sans-serif; font-size:16px; color:rgba(255,255,255,0.55); letter-spacing:1px; animation:pbdBlink 1.3s ease-in-out infinite; }
+@keyframes pbdBlink { 0%,100%{opacity:0.35;} 50%{opacity:1;} }
+@media (max-width:640px) {
+  #pbd-demon { left:4%; width:90vw; }
+  #pbd-player { right:4%; width:90vw; }
+  .pbd-box { padding:19px 17px; }
+  .pbd-text { font-size:17px; }
+  .pbd-name { font-size:12px; margin-bottom:8px; }
+}
+
+/* NPC 말풍선 */
+#npc-bubble {
+  position:fixed; top:80px; left:50%; transform:translateX(-50%);
+  background:rgba(0,10,30,0.96); border:2px solid #ffb41e;
+  box-shadow:0 0 20px rgba(255,180,30,0.3), 4px 4px 0 rgba(0,0,0,0.5);
+  padding:16px 22px; width:min(500px,88vw);
+  font-size:15px; color:#e0e0f0; line-height:1.7;
+  z-index:30; display:none;
+  animation:npcDropIn 0.4s cubic-bezier(.2,.9,.3,1.1) both;
+}
+@keyframes npcDropIn {
+  from { opacity:0; transform:translateX(-50%) translateY(-16px); }
+  to   { opacity:1; transform:translateX(-50%) translateY(0); }
+}
+#npc-bubble::before {
+  content:'NPC';
+  font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700;
+  letter-spacing:3px; color:#ffb41e; display:block; margin-bottom:7px;
+}
+#npc-bubble .close-bubble {
+  position:absolute; top:10px; right:12px;
+  font-size:14px; color:rgba(255,255,255,0.3); cursor:pointer;
+  background:none; border:none;
+}
+#npc-bubble .close-bubble:hover { color:#ffb41e; }
+.music-toggle {
+  position:fixed; top:16px; right:140px; z-index:500;
+  width:34px; height:34px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:15px; font-family:'Orbitron',sans-serif;
+  background:rgba(0,0,0,0.4); border:2px solid rgba(255,180,30,0.5);
+  color:#ffb41e; cursor:pointer; transition:background 0.2s,color 0.2s,opacity 0.2s;
+}
+.music-toggle:hover { background:#ffb41e; color:#150c00; }
+.music-toggle.muted { opacity:0.4; }
+
+/* ── 스테이지 클리어 연출: 화면 플래시 + 확산 링 ── */
+#clear-flash {
+  position:fixed; inset:0; background:#fff; opacity:0;
+  pointer-events:none; z-index:150;
+  transition: opacity 0.15s ease-out;
+}
+#clear-flash.show { opacity:0.85; transition: opacity 0.05s ease-out; }
+
+#clear-ring-wrap { position:fixed; inset:0; z-index:149; pointer-events:none; overflow:hidden; }
+.clear-ring {
+  position:absolute; top:50%; left:50%;
+  width:40px; height:40px; margin:-20px 0 0 -20px;
+  border:6px solid #ffb41e; border-radius:50%;
+  opacity:0; box-shadow:0 0 24px rgba(255,180,30,0.85);
+}
+.clear-ring.show { animation: clearRingExpand 0.9s ease-out forwards; }
+@keyframes clearRingExpand {
+  0%   { width:40px; height:40px; margin:-20px 0 0 -20px; opacity:0.9; border-width:6px; }
+  100% { width:1000px; height:1000px; margin:-500px 0 0 -500px; opacity:0; border-width:1px; }
+}
+#stage-label-top {
+  position:fixed; top:14px; left:50%; transform:translateX(-50%);
+  z-index:21; pointer-events:none;
+  font-family:'Orbitron',sans-serif; font-weight:900; letter-spacing:6px;
+  font-size:clamp(16px,3vw,24px); color:#fff;
+  text-shadow: 0 0 14px rgba(255,255,255,0.5);
+  white-space:nowrap;
+}
+</style>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBtx1kzYEH2Z--dSbTz6Eld2g6ZzWGnlYc",
+    authDomain: "equation-lab-teacher.firebaseapp.com",
+    projectId: "equation-lab-teacher",
+    storageBucket: "equation-lab-teacher.firebasestorage.app",
+    messagingSenderId: "498077230441",
+    appId: "1:498077230441:web:bc7e1e067ec81a6e5e89f8"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // 다른(비-module) 스크립트에서 쓸 수 있도록 window에 노출
+  window.fbDb = db;
+  window.fbDoc = doc;
+  window.fbSetDoc = setDoc;
+  window.fbGetDoc = getDoc;
+  window.fbUpdateDoc = updateDoc;
+  window.fbArrayUnion = arrayUnion;
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+</head>
+<body>
+<div id="stage-label-top">STAGE 1</div>
+
+<!-- ══ 튜토리얼 팝업 ══ -->
+<div id="tutorial-overlay">
+  <div id="tutorial-box">
+    <button id="tut-close-btn" onclick="closeTutorialCancel()" aria-label="닫기">✕</button>
+    <div class="tut-header">
+      <div class="tut-badge">예시 문제</div>
+      <div class="tut-title">풀고 입장하기</div>
+    </div>
+    <div class="tut-body">
+
+      <div class="tut-practice">
+        <div class="tut-explain">
+          <div style="color:#ffb41e;font-weight:700;margin-bottom:6px;">&lt;보스배틀 방법&gt;</div>
+          숫자키를 이용해서 정답을 고르면 보스를 공격합니다.<br>
+          세 번 공격에 성공하면 Q키를 이용해서 마력폭발 공격이 가능합니다.
+        </div>
+        <div class="tut-q">x² − 10x + 25 를 인수분해하시오</div>
+        <div class="tut-hint-text">숫자키 1 / 2 / 3 또는 클릭으로 선택하세요</div>
+        <div class="tut-ans-row" id="tut-choice-row"></div>
+        <div class="tut-btn-row">
+          <button class="tut-answer-btn" onclick="tutShowAnswer()">정답보기</button>
+        </div>
+        <div class="tut-fb" id="tut-fb"></div>
+      </div>
+
+      <button id="tut-enter-btn" onclick="closeTutorial()">던전 입장 →</button>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ 탐험 씬 HUD ══ -->
+<div id="hud">
+  <div style="font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:2px;color:#ffffff;text-shadow:0 1px 4px rgba(0,0,0,0.8);">
+    삼차방정식 연구소 - 완전제곱식
+  </div>
+  <button id="skill-btn" style="display:none" onclick="useSkill()">강공격</button>
+</div>
+
+<div id="combo">COMBO!</div>
+<a class="back-to-main" href="mainpage.html?from=1">← 메인으로</a>
+<button id="music-toggle-btn" class="music-toggle" onclick="toggleMusic()" title="배경음악 켜기/끄기">♪</button>
+<div id="controls-hint">삼차방정식 연구소 - 완전제곱식</div>
+
+<!-- 탐험 캔버스 -->
+<canvas id="canvas"></canvas>
+
+<!-- NPC 말풍선 -->
+<div id="npc-bubble">
+  용사여! 세 개의 포털이 기다리고 있느니라.<br>
+  <strong style="color:#ffb41e;">공식 배우기</strong> → <strong style="color:#ffeb3b;">예제 학습</strong> → <strong style="color:#ff3860;">보스 배틀</strong><br>
+  포털에 가까이 가서 <strong style="color:#ffeb3b;">E 키</strong>를 누르면 진입할 수 있느니라!
+  <button class="close-bubble" onclick="document.getElementById('npc-bubble').style.display='none'">✕</button>
+</div>
+
+
+<!-- ══ 공식 Q&A 팝업 (구 스타일 — 미사용 잔여) ══ -->
+<style>
+.fp-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 680px) { .fp-cols { grid-template-columns: 1fr; } }
+
+.fp-col-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 10px; font-weight: 700; letter-spacing: 3px;
+  display: inline-block; padding: 5px 12px; margin-bottom: 14px;
+  text-transform: uppercase; color: #000;
+}
+.fp-col-label.cyan    { background: #ffb41e; box-shadow: 2px 2px 0 #ffb41e; }
+.fp-col-label.yellow  { background: #ffeb3b; box-shadow: 2px 2px 0 #ffb41e; }
+
+/* 공식 카드 */
+.fp-formula-cards { display: flex; flex-direction: column; gap: 12px; }
+.fp-fcard {
+  background: rgba(0,0,0,0.45);
+  border: 2px solid;
+  padding: 18px 14px; text-align: center;
+}
+.fp-fcard.plus  { border-color: #ffb41e; box-shadow: 0 0 14px rgba(0,240,255,0.2); }
+.fp-fcard.minus { border-color: #ffb41e; box-shadow: 0 0 14px rgba(255,180,30,0.2); }
+.fp-fcard-lbl {
+  font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700;
+  letter-spacing: 3px; margin-bottom: 10px;
+}
+.fp-fcard.plus  .fp-fcard-lbl { color: #ffb41e; }
+.fp-fcard.minus .fp-fcard-lbl { color: #ffb41e; }
+.fp-fcard .katex { color: #fff !important; }
+.fp-fcard .katex * { color: #fff !important; }
+
+/* 증명 영역 */
+.fp-proof-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.35);
+  border-left: 3px solid #ffb41e;
+  font-size: 14px; margin-bottom: 8px;
+  opacity: 0; transform: translateX(-14px);
+  transition: opacity 0.45s, transform 0.45s;
+}
+.fp-proof-row.visible { opacity: 1; transform: translateX(0); }
+.fp-proof-row .katex, .fp-proof-row .katex * { color: #fff !important; }
+.fp-proof-arrow { color: #ffeb3b; font-size: 16px; flex-shrink: 0; }
+
+.fp-proof-toggle {
+  font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; padding: 9px 18px; margin-bottom: 14px;
+  background: transparent; border: 2px solid #ffb41e; color: #ffb41e;
+  cursor: pointer; transition: background 0.2s, color 0.2s; text-transform: uppercase;
+}
+.fp-proof-toggle:hover { background: #ffb41e; color: #150c00; }
+
+/* summary in formula popup */
+.fp-summary {
+  background: rgba(0,0,0,0.4); border: 2px solid #7fff00;
+  padding: 14px 16px; margin-top: 14px;
+  box-shadow: inset 0 0 16px rgba(127,255,0,0.04);
+}
+.fp-sum-item {
+  display: flex; gap: 10px; align-items: center;
+  font-size: 13px; color: #b8b8d4; line-height: 1.6; margin-bottom: 8px;
+}
+.fp-sum-item:last-child { margin-bottom: 0; }
+.fp-sum-dot { width: 7px; height: 7px; background: #7fff00; flex-shrink: 0; box-shadow: 0 0 5px #7fff00; }
+.fp-sum-item strong { color: #7fff00; }
+.fp-sum-item .katex, .fp-sum-item .katex * { color: #fff !important; }
+
+/* 예제 학습 유도 카드 */
+.fp-go-example {
+  background: rgba(255,180,30,0.08);
+  border: 2px solid rgba(255,180,30,0.5);
+  padding: 16px 18px;
+  box-shadow: 0 0 18px rgba(255,180,30,0.12), inset 0 0 16px rgba(255,180,30,0.04);
+}
+.fp-go-inner {
+  display: flex; align-items: flex-start; gap: 14px; margin-bottom: 14px;
+}
+.fp-go-emoji { font-size: 28px; flex-shrink: 0; line-height: 1; }
+.fp-go-title {
+  font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 700;
+  letter-spacing: 2px; color: #ffcc44; margin-bottom: 6px;
+}
+.fp-go-sub { font-size: 13px; color: #b8b8d4; line-height: 1.65; }
+.fp-go-btn {
+  font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; padding: 10px 20px; width: 100%;
+  background: linear-gradient(135deg, #ffcc44, #ffb41e); color: #fff;
+  border: none; cursor: pointer;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.4);
+  transition: transform 0.15s, box-shadow 0.15s; text-transform: uppercase;
+  animation: fpGoPulse 2s infinite;
+}
+@keyframes fpGoPulse {
+  0%,100% { box-shadow: 3px 3px 0 rgba(0,0,0,0.4), 0 0 12px rgba(255,180,30,0.3); }
+  50%     { box-shadow: 3px 3px 0 rgba(0,0,0,0.4), 0 0 24px rgba(255,180,30,0.6); }
+}
+.fp-go-btn:hover { transform: translate(-2px,-2px); }
+</style>
+
+<style>
+/* ══ 공식 Q&A 팝업 ══ */
+#formula-popup .popup {
+  width: min(1200px, 98vw);
+  max-height: 96vh;
+}
+#formula-popup .popup-body {
+  padding: 20px 16px;
+}
+
+.fqa-wrap { display: flex; flex-direction: column; gap: 0; }
+
+/* 전체 레이아웃: 왼쪽 캐릭터 고정 | 오른쪽 말풍선+보기 */
+.fqa-main-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+.fqa-teacher-col {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding-top: 4px;
+}
+.fqa-teacher-img {
+  width: 130px; height: auto;
+}
+.fqa-teacher-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 8px; font-weight: 700; letter-spacing: 2px;
+  color: #ffb41e; text-align: center; white-space: nowrap;
+}
+.fqa-right-col {
+  display: flex; flex-direction: column; gap: 12px;
+  min-width: 0; /* grid 자식이 넘치지 않도록 */
+}
+
+/* 말풍선 — 오른쪽 공간 전체 사용 */
+.fqa-bubble {
+  background: rgba(255,180,30,0.08);
+  border: 2px solid rgba(255,180,30,0.5);
+  padding: 22px 28px;
+  font-size: 19px; color: #e0e0f0; line-height: 1.9;
+  font-family: 'Jua', sans-serif;
+  position: relative;
+  box-shadow: 0 0 18px rgba(255,180,30,0.1);
+  word-break: keep-all;
+  white-space: normal;
+  transition: opacity 0.2s ease;
+}
+.fqa-bubble.fade { opacity: 0; }
+.fqa-feedback-line {
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.15);
+  color: #ffcf7a; opacity: 0; transition: opacity 0.35s ease;
+}
+.fqa-feedback-line.show { opacity: 1; }
+.fq-check-btn {
+  font-family:'Jua',sans-serif; font-size:14px; color:#ffcf7a;
+  background:transparent; border:1px solid #ffcf7a;
+  padding:4px 16px; cursor:pointer; transition:background 0.2s;
+}
+.fq-check-btn:hover { background:rgba(255,207,122,0.15); }
+.fqa-choice-btn.multi-selected {
+  border-color:#7fff00; color:#7fff00; background:rgba(127,255,0,0.08);
+}
+.fqa-bubble::before {
+  content: '';
+  position: absolute; left: -12px; top: 22px;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-right: 12px solid rgba(255,180,30,0.5);
+}
+.fqa-bubble-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px; font-weight: 700; letter-spacing: 3px;
+  color: #ffb41e; margin-bottom: 9px;
+}
+.fqa-bubble .math {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700; color: #ffeb3b;
+}
+.fqa-bubble .math-white {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700; color: #fff;
+}
+
+/* 보기 버튼들 */
+.fqa-choices {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.fqa-choice-btn {
+  font-family: 'Jua', sans-serif; font-size: 16px; font-weight: 400;
+  padding: 13px 20px; text-align: left;
+  background: rgba(0,0,0,0.4);
+  border: 2px solid rgba(255,255,255,0.15);
+  color: #b8b8d4; cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.fqa-choice-btn:hover {
+  border-color: #ffb41e; color: #fff;
+  background: rgba(0,240,255,0.07);
+}
+.fqa-choice-btn.selected-ok {
+  border-color: #7fff00; color: #7fff00;
+  background: rgba(127,255,0,0.08);
+  pointer-events: none;
+}
+.fqa-choice-btn.selected-ng {
+  border-color: #ff3860; color: #ff3860;
+  background: rgba(255,56,96,0.08);
+  animation: fqaShake 0.3s;
+  pointer-events: none;
+}
+.fqa-choice-btn.disabled {
+  opacity: 0.35; pointer-events: none;
+}
+@keyframes fqaShake {
+  0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)}
+}
+
+/* 코멘트 박스 */
+.fqa-comment {
+  margin-top: 12px; padding: 11px 15px;
+  font-size: 13px; line-height: 1.65; color: #b8b8d4;
+  display: none;
+}
+.fqa-comment.show { display: block; }
+.fqa-comment.ok {
+  background: rgba(127,255,0,0.08);
+  border-left: 3px solid #7fff00; color: #c8ffb0;
+}
+.fqa-comment.info {
+  background: rgba(0,240,255,0.07);
+  border-left: 3px solid #ffb41e; color: #b0eeff;
+}
+.fqa-comment .math { font-family:'JetBrains Mono',monospace; font-weight:700; color:#ffeb3b; }
+.fqa-comment .math-g { font-family:'JetBrains Mono',monospace; font-weight:700; color:#7fff00; }
+
+/* 다음 버튼 */
+.fqa-next-btn {
+  display: none; margin-top: 14px;
+  font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; padding: 10px 24px;
+  background: #ffb41e; color: #150c00;
+  border: none; cursor: pointer;
+  box-shadow: 3px 3px 0 #ffb41e;
+  transition: transform 0.15s; text-transform: uppercase;
+  animation: fqaNextPulse 1.4s infinite;
+}
+@keyframes fqaNextPulse {
+  0%,100%{box-shadow:3px 3px 0 #ffb41e;}
+  50%{box-shadow:3px 3px 0 #ffb41e, 0 0 14px rgba(0,240,255,0.5);}
+}
+.fqa-next-btn:hover { transform: translate(-2px,-2px); }
+.fqa-next-btn.show { display: inline-block; }
+
+/* 진행 번호 */
+.fqa-progress {
+  display: flex; gap: 8px; justify-content: center;
+  margin-bottom: 18px;
+}
+.fqa-dot {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,240,255,0.25);
+  background: rgba(0,0,0,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px; font-weight: 700;
+  color: rgba(255,255,255,0.25);
+  transition: all 0.3s;
+}
+.fqa-dot.done {
+  background: rgba(255,180,30,0.18);
+  border-color: #ffb41e;
+  color: #ffb41e;
+  box-shadow: 0 0 8px rgba(0,240,255,0.5);
+}
+.fqa-dot.cur {
+  background: rgba(255,235,59,0.15);
+  border-color: #ffeb3b;
+  color: #ffeb3b;
+  box-shadow: 0 0 8px rgba(255,235,59,0.5);
+}
+.fqa-dot:hover:not(.cur) {
+  border-color: rgba(255,255,255,0.5);
+  color: rgba(255,255,255,0.8);
+  transform: scale(1.15);
+}
+
+/* 종료 화면 */
+.fqa-end {
+  display: none; text-align: center; padding: 16px 0 8px;
+}
+.fqa-end.show { display: block; }
+.fqa-end-title {
+  font-family: 'Orbitron', sans-serif; font-weight: 900;
+  font-size: clamp(18px,4vw,26px); letter-spacing: 2px;
+  background: linear-gradient(90deg,#ffb41e,#ffb41e);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  margin-bottom: 10px;
+}
+.fqa-end-btns { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:16px; }
+.fqa-end-btn {
+  font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; padding: 10px 22px; border: none; cursor: pointer;
+  text-transform: uppercase; transition: transform 0.15s;
+}
+.fqa-end-btn:hover { transform: translate(-2px,-2px); }
+/* 문제식 힌트 — 말풍선 안 TEACHER 아래 */
+.fqa-hint-formula {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,0.35);
+  border: 2px solid rgba(0,240,255,0.4);
+  padding: 10px 20px;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(22px, 3.5vw, 30px);
+  font-weight: 700;
+  color: #fff;
+  box-shadow: 0 0 12px rgba(0,240,255,0.12);
+  letter-spacing: 2px;
+}
+.fqa-hint-formula .hl-a   { color: #ffb41e; }
+.fqa-hint-formula .hl-mid { color: #ff7a00; }
+.fqa-hint-formula .hl-b   { color: #7fff00; }
+
+/* Q9 정리 박스 */
+.fqa-summary-box { display:flex; flex-direction:column; gap:14px; }
+.fqa-sum-problem {
+  font-family:'JetBrains Mono',monospace; font-size:clamp(22px,3.5vw,32px);
+  font-weight:700; color:#fff; text-align:center; letter-spacing:2px;
+  padding:12px; background:rgba(0,0,0,0.3); border:2px solid rgba(255,255,255,0.1);
+}
+.s-mid { color:#ff7a00; }
+.fqa-sum-steps { display:flex; flex-direction:column; gap:8px; }
+.fqa-sum-step {
+  display:flex; align-items:center; gap:12px;
+  padding:10px 16px; background:rgba(0,0,0,0.3);
+  border-left:3px solid rgba(255,255,255,0.15);
+  font-size:15px; color:#b8b8d4;
+  opacity:0; transform:translateX(-14px);
+  transition: opacity 0.4s, transform 0.4s;
+}
+.fqa-sum-step.vis { opacity:1; transform:translateX(0); }
+.fqs-num {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:#ffb41e; color:#150c00; flex-shrink:0;
+}
+.fqs-val { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:18px; margin-left:4px; }
+.sc { color:#ffb41e; } .sg { color:#7fff00; }
+.fqa-sum-step:nth-child(1) { border-left-color:#ffb41e; }
+.fqa-sum-step:nth-child(2) { border-left-color:#7fff00; }
+.fqa-sum-step:nth-child(3) { border-left-color:#ff7a00; }
+
+/* 애니메이션 영역 */
+.fqa-anim-wrap {
+  padding:16px 20px; background:rgba(0,0,0,0.35);
+  border:2px solid rgba(255,122,0,0.4);
+  opacity:0; transition:opacity 0.4s;
+}
+.fqa-anim-wrap.vis { opacity:1; }
+.fqa-anim-eq {
+  font-family:'JetBrains Mono',monospace; font-size:clamp(20px,3vw,28px);
+  font-weight:700; text-align:center; color:#fff;
+  display:flex; justify-content:center; align-items:center; gap:6px;
+}
+.fqa-anim-6x { color:#ff7a00; }
+
+/* 화살표 행 — x²·9 바로 아래 정렬 */
+.fqa-anim-arrows {
+  display:flex; justify-content:center; align-items:flex-start;
+  gap:6px; margin-top:4px; margin-bottom:6px;
+}
+/* x²과 같은 너비 자리 잡기 위해 eq 스팬 너비를 추적 */
+.fqa-anim-slot { display:inline-flex; justify-content:center; }
+.fqa-anim-slot-gap { display:inline-flex; } /* + 기호 자리 */
+
+.fqa-arrow-x, .fqa-arrow-3 {
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  opacity:0; transform:translateY(-6px);
+  transition: opacity 0.4s, transform 0.4s;
+}
+.fqa-arrow-x.vis, .fqa-arrow-3.vis { opacity:1; transform:translateY(0); }
+.faa-line {
+  width:2px; height:20px;
+  background:linear-gradient(to bottom, transparent, currentColor);
+}
+.fqa-arrow-x .faa-line { color:#ffb41e; }
+.fqa-arrow-3 .faa-line { color:#7fff00; }
+.faa-label {
+  font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700;
+  white-space:nowrap;
+}
+.fqa-anim-calc {
+  display:flex; align-items:center; justify-content:center;
+  gap:4px; font-family:'JetBrains Mono',monospace;
+  font-size:clamp(16px,2.5vw,22px); font-weight:700;
+  opacity:0; transform:translateY(8px);
+  transition:opacity 0.4s, transform 0.4s;
+  margin-top:4px;
+}
+.fqa-anim-calc.vis { opacity:1; transform:translateY(0); }
+.fac-op { color:rgba(255,255,255,0.95); }
+.fac-eq { color:#ffeb3b !important; }
+.fac-result { color:#ff7a00; font-size:1.15em; margin-left:4px; }
+
+.fqa-sum-answer {
+  font-family:'JetBrains Mono',monospace; font-size:clamp(20px,3vw,28px);
+  font-weight:700; text-align:center; color:#fff; letter-spacing:2px;
+  padding:14px; background:rgba(127,255,0,0.08); border:2px solid #7fff00;
+  box-shadow:0 0 18px rgba(127,255,0,0.2);
+  opacity:0; transform:scale(0.95);
+  transition:opacity 0.5s, transform 0.5s;
+}
+.fqa-sum-answer.vis { opacity:1; transform:scale(1); }
+
+.fqa-end-btn.primary { background: #ffb41e; color: #150c00; box-shadow: 3px 3px 0 #ffb41e; }
+.fqa-end-btn.secondary { background: transparent; color: #ffcc44; border: 2px solid #ffcc44; }
+
+/* 헤더 공식 */
+.fqa-header-formula {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(13px, 2vw, 17px);
+  font-weight: 700;
+  color: #ffeb3b;
+  background: rgba(255,235,59,0.08);
+  border: 2px solid rgba(255,235,59,0.35);
+  padding: 8px 16px;
+  letter-spacing: 1px;
+  box-shadow: 0 0 12px rgba(255,235,59,0.15);
+  white-space: nowrap;
+}
+
+/* Q7 비교표 */
+.fqa-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 14px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.fqa-compare-table th {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px; font-weight: 700; letter-spacing: 3px;
+  padding: 7px 12px; text-align: center; text-transform: uppercase;
+}
+.fqa-compare-table th.col-label { color: #888; background: rgba(0,0,0,0.3); }
+.fqa-compare-table th.col-a     { color: #ffb41e; background: rgba(255,180,30,0.1); }
+.fqa-compare-table th.col-mid   { color: #ff7a00; background: rgba(255,122,0,0.08); }
+.fqa-compare-table th.col-b     { color: #7fff00; background: rgba(127,255,0,0.08); }
+.fqa-compare-table td {
+  padding: 12px 16px; text-align: center;
+  font-size: clamp(16px, 2.5vw, 21px); font-weight: 700;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.fqa-compare-table tr.row-formula td { color: #b8b8d4; background: rgba(0,0,0,0.25); }
+.fqa-compare-table tr.row-example td { color: #fff;    background: rgba(0,0,0,0.15); }
+.fqa-compare-table td.hl-a   { color: #ffb41e; }
+.fqa-compare-table td.hl-mid { color: #ff7a00; }
+.fqa-compare-table td.hl-b   { color: #7fff00; }
+.fqa-compare-table td.hl-plus {
+  color: rgba(255,255,255,0.35);
+  font-size: 20px; font-weight: 700;
+  padding: 0 2px; width: 20px;
+  text-align: center;
+}
+.fqa-compare-table td.row-label {
+  font-family: 'Orbitron', sans-serif; font-size: 15px;
+  letter-spacing: 2px; color: #555; text-align: left; padding-left: 10px;
+}
+</style>
+
+<div class="popup-overlay" id="formula-popup">
+  <div class="popup" style="--popup-color:#ffb41e;--popup-glow:rgba(255,180,30,0.3);">
+    <div class="popup-header">
+      <div>
+        <div class="popup-badge" style="background:#ffb41e;color:#000;font-weight:900;">공식 배우기</div>
+        <div class="popup-title">완전제곱식 학습하기</div>
+      </div>
+      <button class="popup-close" onclick="closePopup('formula-popup')">✕</button>
+    </div>
+    <div class="popup-body">
+
+      <!-- 진행 도트 -->
+      <div class="fqa-progress" id="fqa-progress"></div>
+
+      <!-- Q&A 본문 -->
+      <div class="fqa-wrap" id="fqa-wrap"></div>
+
+      <!-- 종료 화면 -->
+      <div class="fqa-end" id="fqa-end">
+        <div class="fqa-end-title">학습 완료!</div>
+        <p style="font-size:14px;color:#b8b8d4;line-height:1.7;">
+          완전제곱식 공식을 모두 살펴봤어요.<br>
+          이제 직접 풀어보고 싶다면 예제 학습으로 이동하세요!
+        </p>
+        <div class="fqa-end-btns">
+          <button class="fqa-end-btn primary" onclick="closePopup('formula-popup')">이해했다! 닫기</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ 예제 학습 Q&A 팝업 ══ -->
+<style>
+#example-popup .popup {
+  width: min(820px, 96vw);
+  max-height: 92vh;
+}
+#example-popup .popup-body {
+  padding: 20px 16px;
+}
+
+.eqa-progress { display:flex; gap:8px; justify-content:center; margin-bottom:18px; flex-wrap:wrap; }
+.eqa-dot {
+  width:28px; height:28px; border-radius:50%;
+  border:2px solid rgba(255,235,59,0.25);
+  background: rgba(0,0,0,0.3);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  color: rgba(255,255,255,0.25);
+  transition: all 0.3s; cursor:pointer;
+}
+.eqa-dot.done { background: rgba(255,235,59,0.15); border-color:#ffeb3b; color:#ffeb3b; box-shadow:0 0 8px rgba(255,235,59,0.5); }
+.eqa-dot.cur  { background: rgba(255,180,30,0.18); border-color:#ffb41e; color:#ffb41e; box-shadow:0 0 8px rgba(0,240,255,0.5); }
+.eqa-dot:hover:not(.cur) { border-color: rgba(255,255,255,0.5); color: rgba(255,255,255,0.8); transform: scale(1.15); }
+
+.eqa-stage-label {
+  font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700; letter-spacing:3px;
+  color:#ffeb3b; margin-bottom:8px; text-transform:uppercase;
+}
+.eqa-bubble {
+  background: rgba(255,235,59,0.06);
+  border: 2px solid rgba(255,235,59,0.4);
+  padding: 18px 22px; font-size:17px; color:#e0e0f0; line-height:1.8;
+  margin-bottom:14px;
+}
+.eqa-bubble .math { font-family:'JetBrains Mono',monospace; font-weight:700; color:#ffeb3b; }
+
+.eqa-poly {
+  font-family:'JetBrains Mono',monospace; font-size:clamp(22px,3.5vw,32px);
+  font-weight:700; color:#fff; text-align:center; letter-spacing:2px;
+  padding:14px; background: rgba(0,0,0,0.3); border:2px solid rgba(255,255,255,0.1);
+  margin-bottom:14px;
+}
+.eqa-mid  { color:#ff7a00; }
+.eqa-last { color:#7fff00; }
+
+.eqa-step {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:12px 16px; background: rgba(0,0,0,0.3);
+  border-left:3px solid rgba(255,255,255,0.15);
+  font-size:15px; color:#b8b8d4; margin-bottom:8px;
+}
+.eqa-step.s1 { border-left-color:#ffb41e; }
+.eqa-step.s2 { border-left-color:#7fff00; }
+.eqa-step.s3 { border-left-color:#ff7a00; }
+.eqa-num {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700;
+  width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:#ffb41e; color:#150c00; flex-shrink:0;
+}
+.eqa-step.s2 .eqa-num { background:#7fff00; }
+.eqa-step.s3 .eqa-num { background:#ff7a00; }
+
+.eqa-input {
+  font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700;
+  width:60px; padding:6px 8px; text-align:center;
+  background: rgba(0,0,0,0.5); border:2px solid #ffb41e; color:#ffb41e;
+  outline:none; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.eqa-input.slot-b { border-color:#7fff00; color:#7fff00; }
+.eqa-input.ok { border-color:#7fff00 !important; color:#7fff00 !important; box-shadow:0 0 12px rgba(127,255,0,0.5) !important; }
+.eqa-input.ng { border-color:#ff3860 !important; color:#ff3860 !important; animation: eqaShake 0.3s; }
+@keyframes eqaShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+
+.eqa-calc, .eqa-final {
+  display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap;
+  font-family:'JetBrains Mono',monospace; font-size:clamp(16px,2.5vw,22px); font-weight:700;
+  padding:14px; margin-bottom:8px; color:#fff; text-align:center;
+}
+.eqa-calc  { background: rgba(0,0,0,0.3); border:2px solid rgba(255,122,0,0.3); }
+.eqa-final { background: rgba(127,255,0,0.06); border:2px solid rgba(127,255,0,0.3); }
+
+.eqa-check-mark {
+  display:inline-block; opacity:0; transform:scale(0.4);
+  color:#7fff00; margin-left:4px;
+  transition: opacity 0.3s, transform 0.3s;
+}
+.eqa-check-mark.show { opacity:1; transform:scale(1); }
+
+.eqa-simplified {
+  display:inline-block; opacity:0; transform:translateX(-10px);
+  color:#7fff00; margin-left:8px;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.eqa-simplified.show { opacity:1; transform:translateX(0); }
+
+#eqa-correct-popup {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) scale(0.7);
+  font-family:'Orbitron',sans-serif; font-weight:900; font-size:clamp(26px,5vw,42px);
+  color:#fff; text-shadow:0 0 18px rgba(255,255,255,0.9), 0 0 36px rgba(127,255,0,0.6);
+  letter-spacing:4px; z-index:200; opacity:0; pointer-events:none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+#eqa-correct-popup.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+
+.eqa-btn-row { display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+.eqa-check-btn {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px;
+  padding:10px 24px; background:#ffb41e; color:#150c00; border:none; cursor:pointer;
+  box-shadow:3px 3px 0 #ffb41e; transition: transform 0.15s; text-transform:uppercase;
+}
+.eqa-check-btn:hover { transform: translate(-2px,-2px); }
+.eqa-next-btn {
+  display:none;
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px;
+  padding:10px 24px; background:#7fff00; color:#150c00; border:none; cursor:pointer;
+  box-shadow:3px 3px 0 #ffb41e; transition: transform 0.15s; text-transform:uppercase;
+  animation: eqaPulse 1.4s infinite;
+}
+.eqa-next-btn.show { display:inline-block; }
+@keyframes eqaPulse {
+  0%,100% { box-shadow:3px 3px 0 #ffb41e; }
+  50%     { box-shadow:3px 3px 0 #ffb41e, 0 0 14px rgba(127,255,0,0.5); }
+}
+.eqa-next-btn:hover { transform: translate(-2px,-2px); }
+.eqa-answer-btn {
+  margin-left:auto;
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px;
+  padding:10px 24px; background:transparent; color:#00f0ff; border:2px solid #00f0ff;
+  cursor:pointer; transition: transform 0.15s, background 0.15s; text-transform:uppercase;
+}
+.eqa-answer-btn:hover { background:rgba(0,240,255,0.15); transform: translate(-2px,-2px); }
+
+.eqa-feedback {
+  padding:10px 14px; font-size:13px; font-weight:600; line-height:1.6; margin-top:4px; display:none;
+}
+.eqa-feedback.show { display:block; }
+.eqa-feedback.ok { background: rgba(127,255,0,0.12); border-left:4px solid #7fff00; color:#7fff00; }
+
+.eqa-end { display:none; text-align:center; padding:16px 0 8px; }
+.eqa-end.show { display:block; }
+.eqa-end-title {
+  font-family:'Orbitron',sans-serif; font-weight:900; font-size:clamp(18px,4vw,26px); letter-spacing:2px;
+  background: linear-gradient(90deg,#ffeb3b,#ffb41e);
+  -webkit-background-clip:text; background-clip:text; color:transparent; margin-bottom:10px;
+}
+</style>
+
+<div class="popup-overlay" id="example-popup">
+  <div class="popup" style="--popup-color:#ffeb3b;--popup-glow:rgba(255,235,59,0.3);">
+    <div class="popup-header">
+      <div>
+        <div class="popup-badge" style="background:#ffeb3b;color:#000;">예제 학습</div>
+        <div class="popup-title">완전제곱식 학습하기</div>
+      </div>
+      <button class="popup-close" onclick="closePopup('example-popup')">✕</button>
+    </div>
+    <div class="popup-body">
+
+      <div class="eqa-progress" id="eqa-progress"></div>
+      <div class="eqa-wrap" id="eqa-wrap"></div>
+
+      <div class="eqa-end" id="eqa-end">
+        <div class="eqa-end-title">완벽합니다! 보스배틀로 이동해주세요!</div>
+        <button class="popup-btn" style="background:#ffeb3b;color:#000;box-shadow:3px 3px 0 #ffb41e;" onclick="closePopup('example-popup')">닫기</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="eqa-correct-popup">정답입니다!</div>
+
+<div id="clear-flash"></div>
+<div id="clear-ring-wrap">
+  <div class="clear-ring" id="clear-ring-1"></div>
+  <div class="clear-ring" id="clear-ring-2"></div>
+</div>
+
+<!-- ══ 보스 씬 (전체화면) ══ -->
+<div id="boss-scene">
+  <canvas id="boss-canvas"></canvas>
+  <button onclick="exitBossScene()" style="position:absolute;top:12px;right:16px;z-index:35;
+    font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;
+    padding:8px 16px;background:rgba(0,0,0,0.5);border:2px solid rgba(255,180,30,0.5);
+    color:#ffb41e;cursor:pointer;" 
+    onmouseover="this.style.background='#ffb41e';this.style.color='#150c00';"
+    onmouseout="this.style.background='rgba(0,0,0,0.5)';this.style.color='#ffb41e';">나가기 ✕</button>
+
+  <div id="boss-skill-ready-msg">마력이 충전되었어요, Q키를 눌러보세요!</div>
+
+  <div id="boss-hint-text" style="position:absolute;top:14px;right:140px;z-index:30;
+    font-size:22px;font-weight:700;color:#ffb41e;font-family:'Outfit',sans-serif;
+    text-shadow:0 0 12px rgba(0,240,255,0.8);pointer-events:none;white-space:nowrap;text-align:right;">
+    방향키를 움직여서 미사일을 피하고, 수를 입력하여 마왕을 무찌르세요!
+  </div>
+
+  <!-- 보스씬 HUD -->
+  <div id="boss-hud-bar">
+    <div class="bhp-block">
+      <div class="bhp-label" style="color:#ff6b8a;">PLAYER</div>
+      <div class="bhp-bar-wrap">
+        <div class="bhp-fill" id="b-player-fill"></div>
+        <span class="bhp-val" id="b-player-val">100</span>
+      </div>
+    </div>
+    <div id="boss-skill-dots">
+      <div class="sdot" id="sd0"></div>
+      <div class="sdot" id="sd1"></div>
+      <div class="sdot" id="sd2"></div>
+    </div>
+    <button id="boss-skill-btn" onclick="useBossSkill()">강공격 &nbsp;<span style="font-size:10px;opacity:0.7;border:1px solid currentColor;padding:1px 5px;border-radius:2px;">Q</span></button>
+    <div class="bhp-block">
+      <div class="bhp-label" style="color:#7fff00;">BOSS</div>
+      <div class="bhp-bar-wrap">
+        <div class="bhp-fill" id="b-boss-fill"></div>
+        <span class="bhp-val" id="b-boss-val">100</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 문제 패널 -->
+  <div id="boss-quiz-panel">
+    <div id="bq-question"></div>
+    <div id="bq-sub">정답을 골라 공격하세요! (숫자키 1/2/3 또는 클릭)</div>
+    <div id="bq-answer-row"></div>
+    <div id="bq-btn-row">
+      <button class="bq-btn bq-skill-panel" id="panel-skill-btn" onclick="useBossSkill()">
+        마력폭발
+        <span class="q-key-badge">Q</span>
+        <span id="panel-skill-dots-wrap">
+          <span class="psdot" id="psd0"></span>
+          <span class="psdot" id="psd1"></span>
+          <span class="psdot" id="psd2"></span>
+        </span>
+      </button>
+    </div>
+    <div id="bq-feedback"></div>
+  </div>
+</div>
+
+<!-- 보스 등장 연출 -->
+<div id="boss-intro">
+  <div class="boss-intro-sprite"><img src="image/boss_stage1.png" style="width:286px;height:auto;filter:drop-shadow(0 0 20px rgba(255,50,100,0.8));" /></div>
+  <div class="boss-intro-name">완전제곱식 마왕</div>
+  <div class="boss-intro-sub">PERFECT SQUARE DEMON</div>
+</div>
+
+<!-- 결과 -->
+<div id="result-overlay">
+  <div class="result-box" id="result-box">
+    <div class="result-title" id="result-title">CLEAR!</div>
+    <div class="result-sub" id="result-sub"></div>
+    <div class="result-btn-row" id="result-btn-row">
+      <button class="result-btn" id="result-btn-next" onclick="maybeShowPostBossDlg('next')">STAGE2로 이동</button>
+      <button class="result-btn result-btn-secondary" id="result-btn-main" onclick="maybeShowPostBossDlg('main')">메인으로</button>
+      <button class="result-btn" id="result-btn-retry" onclick="restartGame()">다시 도전</button>
+    </div>
+  </div>
+</div>
+
+<!-- 보스 격파 후 마왕과의 대화 -->
+<div id="post-boss-dlg" onclick="advancePostBossDlg()">
+  <div class="pbd-box" id="pbd-demon">
+    <div class="pbd-name">완전제곱식 마왕</div>
+    <div class="pbd-text" id="pbd-demon-text"></div>
+  </div>
+  <div class="pbd-box" id="pbd-player">
+    <div class="pbd-name" id="pbd-player-name">나</div>
+    <div class="pbd-text" id="pbd-player-text"></div>
+    <div class="pbd-continue">클릭하여 계속 ▶</div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+<script>
+/* ════════════════════════════════════
+   캔버스 설정
+════════════════════════════════════ */
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+const bCanvas = document.getElementById('boss-canvas');
+const bCtx    = bCanvas.getContext('2d');
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  // bCanvas는 flex:1 이므로 실제 렌더 높이 = 전체 - 패널
+  const panel = document.getElementById('boss-quiz-panel');
+  const panelH = panel ? panel.offsetHeight : 130;
+  bCanvas.width  = window.innerWidth;
+  bCanvas.height = window.innerHeight - panelH;
+}
+resize();
+window.addEventListener('resize', resize);
+
+const C = {
+  bg:'#070b1f', cyan:'#ffb41e', magenta:'#ffb41e',
+  yellow:'#ffeb3b', green:'#7fff00', red:'#ff3860', purple:'#ffcc44',
+};
+
+/* ════════════════════════════════════
+   게임 상태
+════════════════════════════════════ */
+const G = {
+  scene: 'explore',   // 'explore' | 'boss'
+  playerHP: 100, bossHP: 100,
+  combo: 0, skillReady: false, skillMsgTimeout: null,
+  beams: [], beamTimer: 0,
+  dmgFlash: 0, bossDmgFlash: 0,
+  gameOver: false,
+  // 보스 시각 상태
+  bossShake: 0, bossHurt: false,
+};
+
+/* ════════════════════════════════════
+   탐험 씬 — 플레이어
+════════════════════════════════════ */
+
+/* ── 에셋 이미지 (파일 참조) ── */
+var _bgImg = new Image();
+_bgImg.src = 'image/stage1_bg.png';
+var _platImg = new Image();
+_platImg.src = 'image/platform_1.png';
+var _spriteImg = new Image();
+_spriteImg.src = 'image/sprite_sheet.png';
+var SPRITE_FW = 314, SPRITE_FH = 354;
+var SPRITE_ROWS = {idle:0, walk:1, jump:2};
+var SPRITE_COUNTS = {idle:1, walk:4, jump:4};
+var SPRITE_FPS = 8;
+var STAGE_PORTAL_COLOR = ['#ffd490','#ffaa44','#fff0cc'];
+var PLAT_CX_RATIO = 0.05013;
+var PLAT_CY_RATIO = 0.375;
+var PLAT_CW_RATIO = 0.89974;
+
+/* ── 보스 이미지 ── */
+var _bossImg = new Image();
+_bossImg.src = 'image/boss_stage1.png';
+const GROUND_H = 80;
+const groundY = () => canvas.height - GROUND_H;
+
+const P = {
+  x: canvas.width * 0.20, y:0, vx:0, vy:0, w:54, h:88,
+  onGround:false, facing:1,
+  walkFrame:0, walkTimer:0, invincible:0,
+};
+const PLAYER_VISUAL_H = 48 * 2.4; // 기존 스프라이트 표시 크기(충돌범위 확대와 무관하게 고정)
+
+/* 플랫폼 — 사용자 지정 배치 (6개) */
+const PLAT_DEFS = [
+  { rx:0.16, ry:0.77, rw:0.16, h:16 },  // 공식 배우기 (왼쪽 아래, 바닥에서 한 번에 점프 가능)
+  { rx:0.36, ry:0.64, rw:0.18, h:16 },  // 계단 2
+  { rx:0.55, ry:0.55, rw:0.19, h:16 },  // 계단 3
+  { rx:0.75, ry:0.47, rw:0.20, h:16 },  // 예제 학습 (오른쪽 중간)
+  { rx:0.55, ry:0.31, rw:0.18, h:16 },  // 계단 5 (예제 학습보다 높고 왼쪽)
+  { rx:0.24, ry:0.26, rw:0.11, h:16 },  // 보스 배틀 (★ 슈퍼점프로만 도달 가능)
+];
+
+function getPlatforms() {
+  return PLAT_DEFS.map(p => ({
+    x: p.rx * canvas.width,
+    y: p.ry * canvas.height,
+    w: p.rw * canvas.width,
+    h: p.h,
+  }));
+}
+
+/* 포털 정의 — 각 플랫폼 위에 배치 */
+const PORTAL_DEFS = [
+  { rx:0.22, onPlatIdx:0, label:'공식 배우기', icon:'', color:'#ffb41e',   action:'formula'  },
+  { rx:0.83, onPlatIdx:3, label:'예제 학습',   icon:'', color:C.yellow, action:'example'  },
+  { rx:0.275, onPlatIdx:5, label:'보스 배틀',  icon:'', color:C.red,   action:'boss'     },
+  { rx:0.08, onGround:true, label:'메인화면', icon:'', color:'#ffd490', action:'main' },
+];
+
+function getPortals() {
+  return PORTAL_DEFS.map(function(pd){
+    var px, py;
+    if (pd.onGround) {
+      px = pd.rx * canvas.width;
+      py = groundY() - 104;
+    } else {
+      var pl = getPlatforms()[pd.onPlatIdx];
+      px = pl.x + pl.w / 2 - 40;
+      py = pl.y - 104;
+    }
+    return Object.assign({x:px, y:py, w:80, h:104}, pd);
+  });
+}
+
+/* 키 */
+const KEY = {};
+window.addEventListener('keydown', e => {
+  KEY[e.code] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyE'].includes(e.code)) e.preventDefault();
+  if (e.code === 'KeyE') tryEnterPortal();
+  // Q키: input에 포커스 중이어도 스킬 발동 (단, 스킬 준비됐을 때만)
+  if (e.code === 'KeyQ') {
+    e.preventDefault();
+    useBossSkill();
+  }
+  // 1/2/3 키: 보스전 객관식 답 선택
+  if (G.scene === 'boss' && ['Digit1','Digit2','Digit3','Numpad1','Numpad2','Numpad3'].includes(e.code)) {
+    e.preventDefault();
+    const idx = parseInt(e.code.slice(-1), 10) - 1;
+    checkBossChoice(idx);
+  }
+  // 1/2/3 키: 튜토리얼(예시 문제) 객관식 답 선택
+  if (tutorialActive && ['Digit1','Digit2','Digit3','Numpad1','Numpad2','Numpad3'].includes(e.code)) {
+    e.preventDefault();
+    const idx = parseInt(e.code.slice(-1), 10) - 1;
+    checkTutorialChoice(idx);
+  }
+});
+window.addEventListener('keyup', e => { KEY[e.code] = false; });
+
+let popupOpen = false;
+
+function openPopup(id) {
+  popupOpen = true;
+  document.getElementById(id).classList.add('open');
+  if (id === 'formula-popup' && typeof fqaRestart === 'function') fqaRestart();
+  if (id === 'example-popup' && typeof eqaRestart === 'function') eqaRestart();
+}
+function closePopup(id) {
+  document.getElementById(id).classList.remove('open');
+  popupOpen = false;
+}
+
+/* ── 포털 진입 판정 ── */
+function tryEnterPortal() {
+  if (popupOpen || G.scene !== 'explore' || G.gameOver) return;
+  getPortals().forEach(portal => {
+    const dx = (P.x + P.w/2) - (portal.x + portal.w/2);
+    const dy = (P.y + P.h/2) - (portal.y + portal.h/2);
+    if (Math.abs(dx) < 60 && Math.abs(dy) < 80) {
+      triggerPortal(portal.action);
+    }
+  });
+}
+
+function triggerPortal(action) {
+  if (action === 'main') { window.location.href='mainpage.html?from=1'; return; }
+  if (action === 'formula') openPopup('formula-popup');
+  else if (action === 'example') openPopup('example-popup');
+  else if (action === 'boss') {
+    if (!G.tutorialDone) {
+      // 처음 보스 포털 진입 → 튜토리얼 팝업 먼저
+      openTutorial();
+    } else if (!G.bossIntroShown) {
+      G.bossIntroShown = true;
+      showBossIntro();
+    } else {
+      enterBossScene();
+    }
+  }
+}
+
+/* ── 점프 파티클 ── */
+const jumpParticles = [];
+function spawnJumpParticles(x, y, isSuperJump) {
+  const count = isSuperJump ? 20 : 8;
+  const col   = isSuperJump ? '#ffcc44' : '#ffb41e';
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 / count) * i + (isSuperJump ? 0 : Math.PI * 0.5);
+    const spd   = isSuperJump ? 3 + Math.random()*4 : 1.5 + Math.random()*2;
+    jumpParticles.push({
+      x, y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd - (isSuperJump ? 2 : 0),
+      life: isSuperJump ? 28 : 18,
+      maxLife: isSuperJump ? 28 : 18,
+      r: isSuperJump ? 5 : 3,
+      col,
+    });
+  }
+}
+function updateJumpParticles() {
+  for (let i = jumpParticles.length - 1; i >= 0; i--) {
+    const p = jumpParticles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.15;
+    p.life--;
+    if (p.life <= 0) jumpParticles.splice(i, 1);
+  }
+}
+function drawJumpParticles() {
+  jumpParticles.forEach(p => {
+    const alpha = p.life / p.maxLife;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.col;
+    ctx.shadowColor = p.col; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * alpha, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+}
+
+/* ── 플레이어 물리 ── */
+const GRAVITY = 0.55, JUMP_V = -13.5, SUPER_JUMP_V = -16, SPEED = 4.5;
+P.jumpCount = 0;
+let spaceWasUp = true;
+
+function updatePlayer() {
+  if (popupOpen || G.scene !== 'explore' || G.gameOver) return;
+
+  if (KEY['ArrowLeft'])  { P.vx = -SPEED; P.facing = -1; }
+  else if (KEY['ArrowRight']) { P.vx =  SPEED; P.facing =  1; }
+  else P.vx = 0;
+
+  // Space로만 점프, 2단 슈퍼점프
+  if (KEY['Space'] && spaceWasUp) {
+    if (P.onGround) {
+      P.vy = JUMP_V; P.onGround = false; P.jumpCount = 1;
+      spawnJumpParticles(P.x + P.w/2, P.y + P.h, false);
+    } else if (P.jumpCount === 1) {
+      P.vy = SUPER_JUMP_V; P.jumpCount = 2;
+      spawnJumpParticles(P.x + P.w/2, P.y + P.h/2, true);
+    }
+    spaceWasUp = false;
+  }
+  if (!KEY['Space']) spaceWasUp = true;
+
+  P.vy = Math.min(P.vy + GRAVITY, 20);
+  P.x += P.vx;
+  P.y += P.vy;
+  P.x = Math.max(0, Math.min(canvas.width - P.w, P.x));
+
+  P.onGround = false;
+  const gy = groundY() - P.h;
+  if (P.y >= gy) { P.y = gy; P.vy = 0; P.onGround = true; P.jumpCount = 0; }
+
+  getPlatforms().forEach(pl => {
+    if (P.x + P.w > pl.x && P.x < pl.x + pl.w &&
+        P.y + P.h > pl.y && P.y + P.h < pl.y + 20 && P.vy >= 0) {
+      P.y = pl.y - P.h; P.vy = 0; P.onGround = true; P.jumpCount = 0;
+    }
+  });
+
+  if (P.vx !== 0 && P.onGround) {
+    P.walkTimer++;
+    if (P.walkTimer > 7) { P.walkFrame=(P.walkFrame+1)%4; P.walkTimer=0; }
+  } else if (P.vx === 0) { P.walkFrame=0; }
+
+  if (P.invincible > 0) P.invincible--;
+  updateJumpParticles();
+
+  // E 키 안내 — 포털 근처 표시
+  let nearPortal = false;
+  getPortals().forEach(portal => {
+    const dx = (P.x + P.w/2) - (portal.x + portal.w/2);
+    const dy = (P.y + P.h/2) - (portal.y + portal.h/2);
+    if (Math.abs(dx) < 70 && Math.abs(dy) < 90) nearPortal = true;
+  });
+  // 포털 근처 안내는 캔버스 위 포털 라벨로 표시됨
+}
+
+/* ════════════════════════════════════
+   보스 씬 진입/탈출
+════════════════════════════════════ */
+G.bossIntroShown = false;
+
+function showBossIntro() {
+  const el = document.getElementById('boss-intro');
+  el.classList.add('show');
+  setTimeout(() => { el.classList.remove('show'); enterBossScene(); }, 2400);
+}
+
+function enterBossScene() {
+  G.scene = 'boss';
+  playCurrentMusic();
+  document.getElementById('boss-scene').classList.add('active');
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('controls-hint').style.display = 'none';
+  G.beams = []; G.beamTimer = 0;
+  loadBossQuestion();
+  // 패널이 DOM에 반영된 뒤 canvas 크기 재계산
+  requestAnimationFrame(() => { resize(); initBossPlayerPos(); bossLoop(); });
+}
+
+function exitBossScene() {
+  G.scene = 'explore';
+  G.gameOver = false;
+  try {
+    const bp = getPortals().find(p => p.action === 'boss');
+    if (bp) {
+      P.x = bp.x + bp.w/2 - P.w/2;
+      P.y = bp.y + bp.h - P.h;
+      P.vx = 0; P.vy = 0; P.onGround = true; P.jumpCount = 0;
+    }
+  } catch(e) {}
+  requestAnimationFrame(exploreLoop);
+  playCurrentMusic();
+  document.getElementById('boss-scene').classList.remove('active');
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('controls-hint').style.display = 'flex';
+  hideSkillReadyMsg();
+}
+
+/* ════════════════════════════════════
+   보스 씬 — 에너지빔 (전 화면 범위)
+════════════════════════════════════ */
+const BEAM_TYPES = [
+  // 우→좌 수평
+  () => ({
+    x: bCanvas.width + 20,
+    y: 80 + Math.random() * (bCanvas.height - BOSS_GROUND_H - 120),
+    vx: -(5 + Math.random()*3),
+    vy: 0, grav: 0, r:12, type:'straight'
+  }),
+  // 좌→우 수평
+  () => ({
+    x: -20,
+    y: 80 + Math.random() * (bCanvas.height - BOSS_GROUND_H - 120),
+    vx: (5 + Math.random()*3),
+    vy: 0, grav: 0, r:12, type:'straight'
+  }),
+  // 위에서 낙하 (랜덤 X)
+  () => ({
+    x: 40 + Math.random() * (bCanvas.width - 80),
+    y: -20,
+    vx: (Math.random()-0.5)*3,
+    vy: 3 + Math.random()*3, grav: 0.12, r:14, type:'fall'
+  }),
+  // 대각선 (좌상→우하)
+  () => ({
+    x: -20,
+    y: 60 + Math.random() * 80,
+    vx: 4 + Math.random()*2,
+    vy: 3 + Math.random()*2, grav: 0, r:11, type:'diag'
+  }),
+  // 대각선 (우상→좌하)
+  () => ({
+    x: bCanvas.width + 20,
+    y: 60 + Math.random() * 80,
+    vx: -(4 + Math.random()*2),
+    vy: 3 + Math.random()*2, grav: 0, r:11, type:'diag'
+  }),
+  // 포물선 (아래에서 위로 솟구쳐 낙하)
+  () => ({
+    x: 40 + Math.random() * (bCanvas.width - 80),
+    y: bCanvas.height - BOSS_GROUND_H + 10,
+    vx: (Math.random()-0.5)*4,
+    vy: -(10 + Math.random()*4), grav: 0.3, r:13, type:'arc'
+  }),
+];
+
+// 보스 위치 (씬에서)
+const BOSS = { x: 0, y: 0, w: 80, h: 80 };
+// 플레이어 보스씬 위치
+const BP = { x: 0, y: 0, w: 60, h: 99, invincible: 0 };
+const BP_VISUAL_H = 54 * 2.4; // 기존 스프라이트 표시 크기(충돌범위 확대와 무관하게 고정)
+
+/* 보스씬 슈퍼점프 파티클 */
+const bossJumpParticles = [];
+function spawnBossJumpParticles(x, y) {
+  for (let i = 0; i < 20; i++) {
+    const angle = (Math.PI * 2 / 20) * i;
+    const spd = 3 + Math.random() * 4;
+    bossJumpParticles.push({
+      x, y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd - 2,
+      life: 28, maxLife: 28, r: 5, col: '#ffcc44',
+    });
+  }
+}
+function updateBossJumpParticles() {
+  for (let i = bossJumpParticles.length - 1; i >= 0; i--) {
+    const p = bossJumpParticles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--;
+    if (p.life <= 0) bossJumpParticles.splice(i, 1);
+  }
+}
+function drawBossJumpParticles() {
+  bossJumpParticles.forEach(p => {
+    const alpha = p.life / p.maxLife;
+    bCtx.save();
+    bCtx.globalAlpha = alpha;
+    bCtx.fillStyle = p.col;
+    bCtx.shadowColor = p.col; bCtx.shadowBlur = 10;
+    bCtx.beginPath(); bCtx.arc(p.x, p.y, p.r * alpha, 0, Math.PI*2); bCtx.fill();
+    bCtx.restore();
+  });
+}
+
+function spawnBeam() {
+  const fn = BEAM_TYPES[Math.floor(Math.random() * BEAM_TYPES.length)];
+  const b = fn();
+  b.alive = true; b.t = 0;
+  G.beams.push(b);
+}
+
+function updateBeams() {
+  if (G.scene !== 'boss' || G.gameOver) return;
+
+  G.beamTimer++;
+  const interval = Math.max(55, 120 - G.bossHP * 0.5);
+  if (G.beamTimer > interval) {
+    spawnBeam();
+    if (Math.random() < 0.3) spawnBeam();
+    G.beamTimer = 0;
+  }
+
+  const W = bCanvas.width, H = bCanvas.height;
+  const panelH = 180; // 하단 패널 높이
+  const playerY = BP.y;
+
+  G.beams.forEach(b => {
+    b.t++;
+    b.vy += b.grav;
+    b.x += b.vx;
+    b.y += b.vy;
+
+    // 플레이어 충돌 (보스씬 플레이어 위치)
+    const px = BP.x, py = BP.y, pw = BP.w, ph = BP.h;
+    if (b.alive && BP.invincible <= 0 &&
+        b.x > px && b.x < px + pw && b.y > py && b.y < py + ph) {
+      b.alive = false;
+      G.playerHP = Math.max(0, G.playerHP - 10);
+      G.dmgFlash = 14;
+      BP.invincible = 70;
+      updateBossHUD();
+      if (G.playerHP <= 0) { showResult(false); return; }
+    }
+
+    if (b.x < -60 || b.x > W+60 || b.y < -60 || b.y > H+60) b.alive = false;
+  });
+  G.beams = G.beams.filter(b => b.alive);
+
+  if (BP.invincible > 0) BP.invincible--;
+  if (G.bossShake > 0) G.bossShake--;
+}
+
+/* ════════════════════════════════════
+   보스씬 플레이어 이동
+════════════════════════════════════ */
+const BOSS_GROUND_H = 20; // bCanvas 하단 여백만 — 패널은 이미 canvas 밖
+const bGroundY = () => bCanvas.height - BOSS_GROUND_H;
+
+const BP_STATE = { vy:0, onGround:false, walkFrame:0, walkTimer:0, facing:1, jumpCount:0 };
+let bSpaceWasUp = true;
+
+function updateBossPlayer() {
+  if (G.scene !== 'boss' || G.gameOver) return;
+  if (KEY['ArrowLeft'])  { BP.x -= SPEED; BP_STATE.facing = -1; }
+  if (KEY['ArrowRight']) { BP.x += SPEED; BP_STATE.facing =  1; }
+
+  // Space 더블점프
+  if (KEY['Space'] && bSpaceWasUp) {
+    if (BP_STATE.onGround) {
+      BP_STATE.vy = JUMP_V; BP_STATE.onGround = false; BP_STATE.jumpCount = 1;
+    } else if (BP_STATE.jumpCount === 1) {
+      BP_STATE.vy = SUPER_JUMP_V; BP_STATE.jumpCount = 2;
+      // 슈퍼점프 파티클 (보스 캔버스용)
+      spawnBossJumpParticles(BP.x + BP.w/2, BP.y + BP.h/2);
+    }
+    bSpaceWasUp = false;
+  }
+  if (!KEY['Space']) bSpaceWasUp = true;
+
+  BP_STATE.vy = Math.min(BP_STATE.vy + GRAVITY, 20);
+  BP.y += BP_STATE.vy;
+  BP.x = Math.max(0, Math.min(bCanvas.width - BP.w, BP.x));
+
+  const gy = bGroundY() - BP.h;
+  BP_STATE.onGround = false;
+  if (BP.y >= gy) { BP.y = gy; BP_STATE.vy = 0; BP_STATE.onGround = true; BP_STATE.jumpCount = 0; }
+
+  if ((KEY['ArrowLeft'] || KEY['ArrowRight']) && BP_STATE.onGround) {
+    BP_STATE.walkTimer++;
+    if (BP_STATE.walkTimer > 7) { BP_STATE.walkFrame=(BP_STATE.walkFrame+1)%4; BP_STATE.walkTimer=0; }
+  } else if (!KEY['ArrowLeft'] && !KEY['ArrowRight']) { BP_STATE.walkFrame=0; }
+}
+
+/* 보스씬 초기 플레이어 위치 */
+function initBossPlayerPos() {
+  BP.x = bCanvas.width * 0.12;
+  BP.y = bGroundY() - BP.h;
+  BP_STATE.vy = 0; BP_STATE.onGround = true; BP_STATE.jumpCount = 0;
+}
+
+/* ════════════════════════════════════
+   문제 데이터
+════════════════════════════════════ */
+const QUESTIONS = [
+  { q:'x² + 8x + 16', correct:'(x + 4)²', wrong:['(x + 8)²', '(x + 2)²'] },
+  { q:'x² − 6x + 9',  correct:'(x − 3)²', wrong:['(x − 9)²', '(x − 1)²'] },
+  { q:'x² + 12x + 36',correct:'(x + 6)²', wrong:['(x + 12)²', '(x + 3)²'] },
+  { q:'x² − 10x + 25',correct:'(x − 5)²', wrong:['(x − 10)²', '(x − 2)²'] },
+  { q:'4x² + 12x + 9', correct:'(2x + 3)²', wrong:['(4x + 3)²', '(2x + 9)²'] },
+  { q:'9x² − 6x + 1',  correct:'(3x − 1)²', wrong:['(9x − 1)²', '(3x − 3)²'] },
+];
+let currentQ = 0;
+let currentCorrectIdx = -1;
+
+function loadBossQuestion() {
+  const q = QUESTIONS[currentQ % QUESTIONS.length];
+  document.getElementById('bq-question').textContent = q.q + ' 를 인수분해하여라';
+
+  const options = [q.correct, ...q.wrong];
+  for (let i = options.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [options[i], options[j]] = [options[j], options[i]];
+  }
+  currentCorrectIdx = options.indexOf(q.correct);
+
+  const row = document.getElementById('bq-answer-row');
+  row.innerHTML = '';
+  options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'bq-mc-btn';
+    btn.innerHTML = `<span class="bq-mc-num">${i+1}</span> ${opt}`;
+    btn.onclick = () => checkBossChoice(i);
+    row.appendChild(btn);
+  });
+
+  const fb = document.getElementById('bq-feedback');
+  fb.className=''; fb.textContent='';
+}
+
+function checkBossChoice(idx) {
+  const btns = document.querySelectorAll('#bq-answer-row .bq-mc-btn');
+  if (!btns.length || btns[0].disabled) return; // 이미 처리된 문제 중복 클릭 방지
+  const allOk = idx === currentCorrectIdx;
+  const fb = document.getElementById('bq-feedback');
+
+  if (allOk) {
+    btns.forEach(b => b.disabled = true);
+    btns[idx].classList.add('ok');
+    G.combo++; G.bossHP = Math.max(0, G.bossHP - 10);
+    updateBossHUD();
+    updateHUD();
+    showCombo();
+    G.bossShake = 18; G.bossHurt = true;
+    setTimeout(() => { G.bossHurt = false; }, 400);
+    spawnAttackSlash(); // 공격 이펙트
+
+    hideSkillReadyMsg();
+    if (G.combo >= 3 && !G.skillReady) {
+      G.skillReady = true;
+      document.getElementById('boss-skill-btn')?.classList.add('ready');
+      showSkillReadyMsg();
+    }
+    updateSkillDots();
+
+    fb.className='ok';
+    fb.textContent = '정답이에요';
+
+    if (G.bossHP <= 0) { setTimeout(() => showResult(true), 800); return; }
+    currentQ++;
+    setTimeout(loadBossQuestion, 1300);
+  } else {
+    btns[idx].classList.add('ng');
+    setTimeout(() => btns[idx].classList.remove('ng'), 400);
+    fb.className='ng'; fb.textContent='틀렸어요! 다시 도전!';
+    G.playerHP = Math.max(0, G.playerHP - 10);
+    G.dmgFlash = 14;
+    BP.invincible = 60;
+    updateBossHUD(); updateHUD();
+    if (G.playerHP <= 0) showResult(false);
+  }
+}
+
+function showSkillReadyMsg() {
+  const el = document.getElementById('boss-skill-ready-msg');
+  if (!el) return;
+  el.classList.add('show');
+  clearTimeout(G.skillMsgTimeout);
+}
+function hideSkillReadyMsg() {
+  const el = document.getElementById('boss-skill-ready-msg');
+  if (el) el.classList.remove('show');
+  clearTimeout(G.skillMsgTimeout);
+}
+
+function useBossSkill() {
+  if (!G.skillReady) return;
+  hideSkillReadyMsg();
+  G.skillReady=false; G.combo=0;
+  document.getElementById('boss-skill-btn')?.classList.remove('ready');
+  updateSkillDots();
+  G.bossHP = Math.max(0, G.bossHP - 20);
+  G.bossShake = 30; G.bossHurt = true;
+  setTimeout(()=>{G.bossHurt=false;},600);
+  spawnSkillExplosion(); // 스킬 폭발 이펙트
+  // 마력폭발: 공격 빔 3연속 발사 — 각각 다른 궤적(직선/곡선1/곡선2)
+  spawnAttackSlash(0);
+  setTimeout(() => spawnAttackSlash(70), 150);
+  setTimeout(() => spawnAttackSlash(-45), 300);
+  updateBossHUD(); updateHUD();
+  if (G.bossHP <= 0) setTimeout(()=>showResult(true),600);
+  // 화려한 스킬 이펙트 빔 제거
+  G.beams = G.beams.filter(b=>false);
+}
+function useSkill() { useBossSkill(); }
+
+function updateSkillDots() {
+  const c = Math.min(G.combo, 3);
+
+  // HUD 닷
+  for (let i = 0; i < 3; i++) {
+    document.getElementById(`sd${i}`)?.classList.toggle('on', i < c);
+  }
+  const sv = document.getElementById('skill-val');
+  const sb = document.getElementById('skill-bar');
+  if (sv) sv.textContent = `${c}/3`;
+  if (sb) sb.style.width = `${(c/3)*100}%`;
+
+  // 패널 닷
+  for (let i = 0; i < 3; i++) {
+    document.getElementById(`psd${i}`)?.classList.toggle('on', i < c);
+  }
+
+  // 버튼 상태 동기화 (HUD + 패널)
+  const hudBtn   = document.getElementById('boss-skill-btn');
+  const panelBtn = document.getElementById('panel-skill-btn');
+  if (G.skillReady) {
+    hudBtn?.classList.add('ready');
+    panelBtn?.classList.add('ready');
+  } else {
+    hudBtn?.classList.remove('ready');
+    panelBtn?.classList.remove('ready');
+  }
+}
+
+function updateBossHUD() {
+  const pf = document.getElementById('b-player-fill');
+  const pv = document.getElementById('b-player-val');
+  const bf = document.getElementById('b-boss-fill');
+  const bv = document.getElementById('b-boss-val');
+  if (pf) pf.style.width = G.playerHP + '%';
+  if (pv) pv.textContent  = G.playerHP;
+  if (bf) bf.style.width   = G.bossHP   + '%';
+  if (bv) bv.textContent    = G.bossHP;
+}
+function updateHUD() {
+  const bar = document.getElementById('player-hp-bar');
+  const val = document.getElementById('player-hp-val');
+  if (bar) bar.style.width = G.playerHP + '%';
+  if (val) val.textContent = G.playerHP;
+  updateSkillDots();
+}
+
+function showCombo() {
+  const el = document.getElementById('combo');
+  el.textContent = G.combo >= 3 ? '스킬 충전!' : `${G.combo} COMBO!`;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),1100);
+}
+
+/* ════════════════════════════════════
+   결과
+════════════════════════════════════ */
+/* ════════════════════════════════════
+   보스 격파 후 마왕과의 대화
+════════════════════════════════════ */
+const POST_BOSS_SCRIPT = [
+  { speaker:'demon',  text:'...겨우 조각 하나 깼다고 우쭐대지 마라. 아직 넷이나 남았다.' },
+  { speaker:'player', text:'하나부터가 시작이지. 나머지도 다 찾아낼 거야.' },
+];
+let pbdIdx = -1;
+let pbdNavTarget = null;
+
+function maybeShowPostBossDlg(navTarget) {
+  pbdNavTarget = navTarget;
+  document.getElementById('pbd-player-name').textContent = localStorage.getItem('playerName') || '나';
+  document.getElementById('result-overlay').classList.remove('show');
+  document.getElementById('post-boss-dlg').classList.add('show');
+  pbdIdx = -1;
+  advancePostBossDlg();
+}
+
+function advancePostBossDlg() {
+  pbdIdx++;
+  if (pbdIdx >= POST_BOSS_SCRIPT.length) {
+    document.getElementById('post-boss-dlg').classList.remove('show');
+    navigateAfterBoss(pbdNavTarget);
+    return;
+  }
+  const cur = POST_BOSS_SCRIPT[pbdIdx];
+  if (cur.speaker === 'demon') {
+    document.getElementById('pbd-demon').classList.add('show');
+    document.getElementById('pbd-demon-text').textContent = cur.text;
+  } else {
+    document.getElementById('pbd-player').classList.add('show');
+    document.getElementById('pbd-player-text').textContent = cur.text;
+  }
+}
+
+function navigateAfterBoss(target) {
+  if (target === 'next') location.href = 'stage2.html';
+  else if (target === 'main') location.href = 'mainpage.html?from=1';
+}
+
+function showResult(win) {
+  G.gameOver = true;
+  const overlay = document.getElementById('result-overlay');
+  const box     = document.getElementById('result-box');
+  overlay.classList.add('show');
+  const nextBtn  = document.getElementById('result-btn-next');
+  const mainBtn  = document.getElementById('result-btn-main');
+  const retryBtn = document.getElementById('result-btn-retry');
+  if (win) {
+    box.style.setProperty('--res-color','#7fff00');
+    box.style.setProperty('--res-glow','rgba(127,255,0,0.4)');
+    document.getElementById('result-title').textContent = 'STAGE CLEAR!';
+    document.getElementById('result-sub').textContent   = '완전제곱식 마왕을 물리쳤다! 다음 스테이지로!';
+    showClearEffect();
+    nextBtn.style.display = '';
+    mainBtn.style.display = '';
+    retryBtn.style.display = 'none';
+  } else {
+    box.style.setProperty('--res-color','#ff3860');
+    box.style.setProperty('--res-glow','rgba(255,56,96,0.4)');
+    document.getElementById('result-title').textContent = 'GAME OVER';
+    document.getElementById('result-sub').textContent   = '패배했다... 공식을 다시 익히고 도전하라!';
+    nextBtn.style.display = 'none';
+    mainBtn.style.display = 'none';
+    retryBtn.style.display = '';
+  }
+}
+function showClearEffect() {
+  const flash = document.getElementById('clear-flash');
+  if (flash) {
+    flash.classList.add('show');
+    setTimeout(() => flash.classList.remove('show'), 120);
+  }
+  ['clear-ring-1','clear-ring-2'].forEach((id, i) => {
+    const r = document.getElementById(id);
+    if (!r) return;
+    r.classList.remove('show');
+    void r.offsetWidth;
+    setTimeout(() => r.classList.add('show'), i * 150);
+  });
+}
+function restartGame() {
+  G.playerHP=100; G.bossHP=100; G.combo=0; G.skillReady=false;
+  G.beams=[]; G.beamTimer=0; G.dmgFlash=0; G.bossDmgFlash=0;
+  G.bossShake=0; G.bossHurt=false; G.gameOver=false;
+  G.bossIntroShown=false; G.scene='explore';
+  playCurrentMusic();
+  currentQ=0;
+  document.getElementById('result-overlay').classList.remove('show');
+  document.getElementById('boss-scene').classList.remove('active');
+  document.getElementById('hud').style.display='flex';
+  document.getElementById('controls-hint').style.display='flex';
+  document.getElementById('boss-skill-btn')?.classList.remove('ready');
+  hideSkillReadyMsg();
+  const bossPlat = getPlatforms()[5];
+  P.x = bossPlat.x + bossPlat.w/2 - P.w/2; P.y = bossPlat.y - P.h;
+  P.vx=0; P.vy=0; P.invincible=0; P.onGround=true;
+  updateHUD(); updateBossHUD(); updateSkillDots();
+  requestAnimationFrame(exploreLoop);
+}
+
+/* ════════════════════════════════════
+   탐험 씬 렌더링
+════════════════════════════════════ */
+function drawExploreBackground() {
+  var W=canvas.width, H=canvas.height;
+  if (_bgImg.complete && _bgImg.naturalWidth > 0) {
+    var iw=_bgImg.naturalWidth, ih=_bgImg.naturalHeight;
+    var scale=Math.max(W/iw, H/ih);
+    var dw=iw*scale, dh=ih*scale;
+    var dx=(W-dw)/2, dy=(H-dh)/2;
+    ctx.drawImage(_bgImg, dx, dy, dw, dh+80);
+  } else {
+    var bg=ctx.createLinearGradient(0,0,0,H);
+    bg.addColorStop(0,'#120800'); bg.addColorStop(1,'#0d0500');
+    ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  }
+}
+
+function drawGround() {
+  const W=canvas.width, gy=groundY();
+  const grd=ctx.createLinearGradient(0,gy,0,gy+GROUND_H);
+  grd.addColorStop(0,'rgba(255,180,30,0.25)'); grd.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=grd; ctx.fillRect(0,gy,W,GROUND_H);
+  ctx.strokeStyle='#ffb41e'; ctx.lineWidth=2; ctx.shadowColor='#ffb41e'; ctx.shadowBlur=10;
+  ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke();
+  ctx.shadowBlur=0;
+}
+
+function drawPlatforms() {
+  getPlatforms().forEach(function(pl){
+    if (_platImg.complete && _platImg.naturalWidth > 0) {
+      var imgW=_platImg.naturalWidth, imgH=_platImg.naturalHeight;
+      var drawW=pl.w/PLAT_CW_RATIO;
+      var drawH=drawW*(imgH/imgW);
+      var drawX=pl.x-drawW*PLAT_CX_RATIO;
+      var drawY=pl.y-drawH*PLAT_CY_RATIO;
+      ctx.drawImage(_platImg, drawX, drawY, drawW, drawH);
+    } else {
+      ctx.fillStyle='rgba(255,200,80,0.1)';ctx.fillRect(pl.x,pl.y,pl.w,pl.h);
+      ctx.strokeStyle='#ffaa44';ctx.lineWidth=1.5;ctx.strokeRect(pl.x,pl.y,pl.w,pl.h);
+    }
+  });
+}
+
+function drawGoldenPortal(ctx,cx,cy,rx,ry,t,colors){
+  var c1=colors[0],c2=colors[1],c3=colors[2];
+  function hexToRgb(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
+  var rgb1=hexToRgb(c1),rgb2=hexToRgb(c2),rgb3=hexToRgb(c3);
+  var r1=rgb1[0],g1=rgb1[1],b1=rgb1[2];
+  var r2=rgb2[0],g2=rgb2[1],b2=rgb2[2];
+  var r3=rgb3[0],g3=rgb3[1],b3=rgb3[2];
+  var og=ctx.createRadialGradient(cx,cy,0,cx,cy,rx*2.1);
+  og.addColorStop(0,'rgba('+r1+','+g1+','+b1+',0.22)');
+  og.addColorStop(1,'rgba('+r1+','+g1+','+b1+',0)');
+  ctx.fillStyle=og;ctx.beginPath();ctx.ellipse(cx,cy,rx*2.1,ry*2.1,0,0,Math.PI*2);ctx.fill();
+  var ig=ctx.createRadialGradient(cx,cy-ry*0.1,5,cx,cy,rx);
+  ig.addColorStop(0,'rgba('+r3+','+g3+','+b3+',0.55)');
+  ig.addColorStop(0.4,'rgba('+r1+','+g1+','+b1+',0.40)');
+  ig.addColorStop(1,'rgba('+r2+','+g2+','+b2+',0.05)');
+  ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.fillStyle=ig;ctx.fill();
+  for(var g=5;g>=0;g--){
+    ctx.beginPath();ctx.ellipse(cx,cy,rx+g*4,ry+g*4,0,0,Math.PI*2);
+    ctx.strokeStyle='rgba('+r1+','+g1+','+b1+','+(0.07-g*0.008)+')';
+    ctx.lineWidth=7;ctx.stroke();
+  }
+  ctx.beginPath();ctx.ellipse(cx,cy,rx+6,ry+6,0,0,Math.PI*2);
+  ctx.strokeStyle='rgba('+r1+','+g1+','+b1+',0.55)';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.ellipse(cx,cy,rx-7,ry-7,0,0,Math.PI*2);
+  ctx.strokeStyle='rgba('+r3+','+g3+','+b3+',0.75)';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);
+  ctx.strokeStyle=c1;ctx.lineWidth=3;ctx.shadowColor=c2;ctx.shadowBlur=15;ctx.stroke();ctx.shadowBlur=0;
+  var cl=ctx.createRadialGradient(cx,cy-ry*0.1,0,cx,cy,rx*0.7);
+  cl.addColorStop(0,'rgba('+r3+','+g3+','+b3+',0.65)');
+  cl.addColorStop(1,'rgba('+r1+','+g1+','+b1+',0)');
+  ctx.beginPath();ctx.ellipse(cx,cy,rx*0.7,ry*0.7,0,0,Math.PI*2);ctx.fillStyle=cl;ctx.fill();
+  for(var p=0;p<22;p++){
+    var ba=((cx*137+p*73)%360)*Math.PI/180,dr=0.65+((cx*137+p*31)%100)/200;
+    var sp=0.25+((cx*137+p*17)%10)/25,ph2=((cx*137+p*53)%100)/100*Math.PI*2;
+    var sz=1.2+((cx*137+p*41)%10)/4,pulse=Math.sin(t*sp*2+ph2)*0.5+0.5;
+    var ang=ba+t*0.18*(p%2===0?1:-0.6),dist=rx*dr+Math.sin(t*1.5+ph2)*10;
+    var ppx=cx+Math.cos(ang)*dist,ppy=cy+Math.sin(ang)*dist*(ry/rx);
+    ctx.globalAlpha=0.35+pulse*0.65;
+    if(p%2===0){
+      ctx.beginPath();
+      for(var s=0;s<4;s++){
+        var a=(s/4)*Math.PI*2,a2=a+Math.PI/4;
+        ctx.moveTo(ppx,ppy);ctx.lineTo(ppx+Math.cos(a)*sz*2.2,ppy+Math.sin(a)*sz*2.2);
+        ctx.moveTo(ppx,ppy);ctx.lineTo(ppx+Math.cos(a2)*sz*0.8,ppy+Math.sin(a2)*sz*0.8);
+      }
+      ctx.strokeStyle=c3;ctx.lineWidth=1;ctx.stroke();
+    } else {
+      ctx.beginPath();ctx.arc(ppx,ppy,sz*0.9,0,Math.PI*2);ctx.fillStyle=c3;ctx.fill();
+    }
+  }
+  ctx.globalAlpha=1;
+}
+
+function drawPortals() {
+  var t=Date.now()/1000;
+  var colors=STAGE_PORTAL_COLOR;
+  getPortals().forEach(function(portal,i){
+    var cx=portal.x+portal.w/2,cy=portal.y+portal.h/2;
+    var rx=portal.w/2,ry=portal.h/2;
+    ctx.save();
+    drawGoldenPortal(ctx,cx,cy,rx,ry,t,colors);
+    var platL=getPlatforms()[portal.onPlatIdx];
+    var labelX=platL ? platL.x + platL.w/2 : cx;
+    var labelY=platL ? platL.y + platL.h + 22 : portal.y + portal.h + 20;
+    ctx.font='bold 14px "Orbitron",sans-serif';ctx.textAlign='center';ctx.lineJoin='round';
+    ctx.strokeStyle='rgba(40,20,10,0.85)';ctx.lineWidth=4;ctx.strokeText(portal.label,labelX,labelY);
+    ctx.fillStyle='#ffffff';ctx.shadowColor=colors[0];ctx.shadowBlur=16;
+    ctx.fillText(portal.label,labelX,labelY);
+    ctx.shadowBlur=12;ctx.fillText(portal.label,labelX,labelY);ctx.shadowBlur=0;
+    var dx=(P.x+P.w/2)-cx,dy=(P.y+P.h/2)-cy;
+    if(Math.abs(dx)<70&&Math.abs(dy)<90){
+      ctx.font='bold 13px "Orbitron",sans-serif';
+      ctx.fillStyle='#ffeb3b';ctx.shadowColor='#ffeb3b';ctx.shadowBlur=10;
+      ctx.fillText('[E] 진입',cx,portal.y-12);ctx.shadowBlur=0;
+    }
+    ctx.restore();
+  });
+}
+
+function drawExplorePlayer() {
+  if(G.scene!=='explore') return;
+  if(P.invincible>0&&Math.floor(P.invincible/4)%2===0) return;
+  var px=P.x,py=P.y,pw=P.w,ph=P.h,cx=px+pw/2;
+  if (_spriteImg.complete && _spriteImg.naturalWidth > 0) {
+    var row, frameIdx;
+    if (P.onGround) {
+      if (Math.abs(P.vx)>0.5) {
+        row=1;
+        P._walkDist=(P._walkDist||0)+Math.abs(P.vx);
+        frameIdx=Math.floor(P._walkDist/60)%4;
+        P._lastRow=row; P._lastFrame=frameIdx;
+      } else {
+        row=0; frameIdx=0;
+        P._walkDist=0;
+        P._lastRow=0; P._lastFrame=0;
+      }
+    } else {
+      row=SPRITE_ROWS.jump; frameIdx=1;
+    }
+    var sx=frameIdx*SPRITE_FW, sy=row*SPRITE_FH;
+    var dH=PLAYER_VISUAL_H,dW=dH*(SPRITE_FW/SPRITE_FH),drawY=py+ph-dH;
+    ctx.save();
+    ctx.translate(cx,drawY+dH/2);
+    if(P.facing>0) ctx.scale(-1,1);
+    ctx.drawImage(_spriteImg,sx,sy,SPRITE_FW,SPRITE_FH,-dW/2,-dH/2,dW,dH);
+    ctx.restore();
+  } else {
+    ctx.fillStyle='#ffaa44';
+    ctx.beginPath();ctx.ellipse(cx,py+ph/2,pw/2,ph/2,0,0,Math.PI*2);ctx.fill();
+  }
+  if(P.onGround){
+    ctx.save();ctx.fillStyle='rgba(0,0,0,0.18)';
+    ctx.beginPath();ctx.ellipse(cx,py+ph+2,pw*0.45,4,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  }
+}
+
+/* ════════════════════════════════════
+   보스 씬 렌더링
+════════════════════════════════════ */
+const BOSS_STARS = Array.from({length: 90}, () => ({
+  x: Math.random(), y: Math.random()*0.8, r: Math.random()*1.4+0.3,
+  phase: Math.random()*Math.PI*2, speed: 0.5+Math.random()*1.5
+}));
+
+function drawBossBackground() {
+  const W=bCanvas.width, H=bCanvas.height;
+  const t = Date.now()/1000;
+
+  const bg=bCtx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#030310'); bg.addColorStop(1,'#0a0518');
+  bCtx.fillStyle=bg; bCtx.fillRect(0,0,W,H);
+
+  // 별
+  BOSS_STARS.forEach(s => {
+    const alpha = Math.max(0.15, 0.35 + 0.45*Math.sin(t*s.speed + s.phase));
+    bCtx.globalAlpha = alpha;
+    bCtx.fillStyle = '#ffffff';
+    bCtx.beginPath();
+    bCtx.arc(s.x*W, s.y*H, s.r, 0, Math.PI*2);
+    bCtx.fill();
+  });
+  bCtx.globalAlpha = 1;
+
+  // 오로라 성운 (천천히 드리프트)
+  const driftX = Math.sin(t*0.05)*30;
+  const nebGold = bCtx.createRadialGradient(W*0.65+driftX, H*0.4, 10, W*0.65+driftX, H*0.4, W*0.5);
+  nebGold.addColorStop(0,'rgba(255,180,30,0.20)');
+  nebGold.addColorStop(0.5,'rgba(200,60,150,0.10)');
+  nebGold.addColorStop(1,'rgba(0,0,0,0)');
+  bCtx.fillStyle = nebGold; bCtx.fillRect(0,0,W,H);
+
+  const nebBlue = bCtx.createRadialGradient(W*0.2-driftX, H*0.65, 10, W*0.2-driftX, H*0.65, W*0.4);
+  nebBlue.addColorStop(0,'rgba(80,120,255,0.14)');
+  nebBlue.addColorStop(1,'rgba(0,0,0,0)');
+  bCtx.fillStyle = nebBlue; bCtx.fillRect(0,0,W,H);
+
+  // 피격 플래시
+  if(G.dmgFlash>0){
+    bCtx.fillStyle=`rgba(255,56,96,${G.dmgFlash/24*0.4})`; bCtx.fillRect(0,0,W,H); G.dmgFlash--;
+  }
+}
+
+function drawBossGround() {
+  const W=bCanvas.width, gy=bGroundY();
+  const grd=bCtx.createLinearGradient(0,gy,0,gy+24);
+  grd.addColorStop(0,'rgba(255,56,96,0.3)'); grd.addColorStop(1,'rgba(0,0,0,0)');
+  bCtx.fillStyle=grd; bCtx.fillRect(0,gy,W,24);
+  bCtx.strokeStyle=C.red; bCtx.lineWidth=2; bCtx.shadowColor=C.red; bCtx.shadowBlur=14;
+  bCtx.beginPath(); bCtx.moveTo(0,gy); bCtx.lineTo(W,gy); bCtx.stroke(); bCtx.shadowBlur=0;
+}
+
+function drawBossSprite() {
+  const W=bCanvas.width;
+  const t=Date.now()/1000;
+  const bx = W/2;
+  const by = bCanvas.height * 0.28 + Math.sin(t*1.5)*8 + (G.bossShake>0?(Math.random()-0.5)*12:0);
+
+  BOSS.x = bx - BOSS.w/2;
+  BOSS.y = by - BOSS.h/2;
+
+  bCtx.save();
+  if(G.bossHurt){
+    bCtx.filter='brightness(2) saturate(0.5)';
+    bCtx.globalAlpha=0.7;
+  }
+  var dH, dW;
+  if (_bossImg.complete && _bossImg.naturalWidth>0) {
+    dH = 330 + Math.sin(t*2)*6;
+    dW = dH * (_bossImg.naturalWidth/_bossImg.naturalHeight);
+    bCtx.shadowColor='#ff3860'; bCtx.shadowBlur=30+Math.sin(t*3)*12;
+    var imgTopY = Math.max(10, by - dH*0.55);
+    bCtx.drawImage(_bossImg, bx-dW/2, imgTopY, dW, dH);
+  } else {
+    dH = 160; dW = 160;
+    bCtx.shadowColor='#ff3860'; bCtx.shadowBlur=30+Math.sin(t*3)*12;
+    bCtx.font=`${80+Math.sin(t*2)*4}px serif`;
+    bCtx.textAlign='center'; bCtx.fillStyle='#fff';
+    bCtx.fillText('',bx,by+30);
+  }
+
+  bCtx.filter='none'; bCtx.globalAlpha=1;
+
+  bCtx.shadowBlur=0; bCtx.textAlign='left'; bCtx.restore();
+}
+
+function drawBossPlayer() {
+  if(G.scene!=='boss') return;
+  if(BP.invincible>0&&Math.floor(BP.invincible/4)%2===0) return;
+  var px=BP.x,py=BP.y,pw=BP.w,ph=BP.h,cx=px+pw/2;
+  if (_spriteImg.complete && _spriteImg.naturalWidth > 0) {
+    var row, frameIdx;
+    var isMoving = KEY['ArrowLeft'] || KEY['ArrowRight'];
+    if (BP_STATE.onGround) {
+      if (isMoving) {
+        row=1;
+        BP._walkDist=(BP._walkDist||0)+Math.abs(BP_STATE.vx||4);
+        frameIdx=Math.floor(BP._walkDist/60)%4;
+        BP._lastRow=row; BP._lastFrame=frameIdx;
+      } else {
+        row=0; frameIdx=0;
+        BP._walkDist=0;
+        BP._lastRow=0; BP._lastFrame=0;
+      }
+    } else {
+      row=SPRITE_ROWS.jump; frameIdx=1;
+    }
+    var sx=frameIdx*SPRITE_FW, sy=row*SPRITE_FH;
+    var dH=BP_VISUAL_H,dW=dH*(SPRITE_FW/SPRITE_FH),drawY=py+ph-dH;
+    bCtx.save();
+    bCtx.translate(cx,drawY+dH/2);
+    if(BP_STATE.facing>0) bCtx.scale(-1,1);
+    bCtx.drawImage(_spriteImg,sx,sy,SPRITE_FW,SPRITE_FH,-dW/2,-dH/2,dW,dH);
+    bCtx.restore();
+  } else {
+    bCtx.fillStyle='#ffaa44';
+    bCtx.beginPath();bCtx.ellipse(cx,py+ph/2,pw/2,ph/2,0,0,Math.PI*2);bCtx.fill();
+  }
+  if (BP_STATE.onGround) {
+    bCtx.save();
+    bCtx.fillStyle='rgba(0,0,0,0.18)';
+    bCtx.beginPath();bCtx.ellipse(cx,py+ph+2,pw*0.45,4,0,0,Math.PI*2);bCtx.fill();
+    bCtx.restore();
+  }
+}
+
+function drawBeams() {
+  const t=Date.now()/200;
+  G.beams.forEach(b=>{
+    bCtx.save();
+    // 빔 색상 타입별
+    const col = b.type==='fall'?'#ffcc44' : b.type==='arc'?'#ffeb3b' : '#ff3860';
+    const col2 = b.type==='fall'?'#ffb41e' : b.type==='arc'?'#ff7a00' : '#ff7a00';
+    const grd=bCtx.createRadialGradient(b.x,b.y,0,b.x,b.y,b.r*2);
+    grd.addColorStop(0,col+'ff'); grd.addColorStop(0.5,col2+'88'); grd.addColorStop(1,'transparent');
+    bCtx.fillStyle=grd; bCtx.shadowColor=col; bCtx.shadowBlur=24;
+    bCtx.beginPath(); bCtx.arc(b.x,b.y,b.r+Math.sin(t+b.t)*2,0,Math.PI*2); bCtx.fill();
+    // 꼬리
+    bCtx.strokeStyle=col+'66'; bCtx.lineWidth=4;
+    bCtx.beginPath(); bCtx.moveTo(b.x,b.y); bCtx.lineTo(b.x-b.vx*5,b.y-b.vy*5); bCtx.stroke();
+    bCtx.shadowBlur=0; bCtx.restore();
+  });
+}
+
+/* ════════════════════════════════════
+   공격 이펙트
+════════════════════════════════════ */
+const attackFX = [];   // 일반 공격 슬래시
+const hitSparks = [];  // 보스 피격 스파크
+const skillFX   = [];  // 스킬 폭발
+
+/* 일반 공격: 캐릭터→보스 방향 슬래시 레이 */
+function spawnAttackSlash(curve = 0) {
+  // 출발점: 캐릭터 오른쪽 끝
+  const sx = BP.x + BP.w;
+  const sy = BP.y + BP.h * 0.3;
+  // 목표: 보스 중심
+  const tx = bCanvas.width / 2;
+  const ty = bCanvas.height * 0.28;
+  attackFX.push({ sx, sy, tx, ty, life: 21, maxLife: 21, curve });
+
+  // 보스 피격 스파크
+  for (let i = 0; i < 10; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd   = 2 + Math.random() * 4;
+    hitSparks.push({
+      x: tx + (Math.random()-0.5)*20,
+      y: ty + (Math.random()-0.5)*20,
+      vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd,
+      life: 18, maxLife: 18,
+      col: Math.random() < 0.5 ? '#ffeb3b' : '#ffb41e',
+    });
+  }
+}
+
+/* 스킬 폭발: 보스 중심에서 방사형 폭발 */
+function spawnSkillExplosion() {
+  const cx = bCanvas.width / 2;
+  const cy = bCanvas.height * 0.28;
+  // 큰 링 웨이브
+  skillFX.push({ cx, cy, r: 10, maxR: 180, life: 28, maxLife: 28, type:'ring' });
+  // 파편
+  for (let i = 0; i < 28; i++) {
+    const angle = (Math.PI*2/28)*i;
+    const spd   = 4 + Math.random()*6;
+    skillFX.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd,
+      life: 30, maxLife: 30, type:'shard',
+      col: ['#ffcc44','#ffeb3b','#ffb41e','#ffb41e'][i%4],
+    });
+  }
+}
+
+function updateAttackFX() {
+  for(let i=attackFX.length-1;i>=0;i--)  { attackFX[i].life--;  if(attackFX[i].life<=0)  attackFX.splice(i,1); }
+  for(let i=hitSparks.length-1;i>=0;i--) {
+    const s=hitSparks[i]; s.x+=s.vx; s.y+=s.vy; s.vy+=0.2; s.life--;
+    if(s.life<=0) hitSparks.splice(i,1);
+  }
+  for(let i=skillFX.length-1;i>=0;i--) {
+    const f=skillFX[i]; f.life--;
+    if(f.type==='ring') f.r += (f.maxR-f.r)*0.15;
+    else { f.x+=f.vx; f.y+=f.vy; f.vy+=0.1; }
+    if(f.life<=0) skillFX.splice(i,1);
+  }
+}
+
+function drawAttackFX() {
+  // 슬래시 레이
+  attackFX.forEach(fx => {
+    const p = fx.life / fx.maxLife;
+    const curve = fx.curve || 0;
+    // 곡선용 제어점: 시작-끝 중점에서 수직 방향으로 offset
+    const mx = (fx.sx + fx.tx) / 2, my = (fx.sy + fx.ty) / 2;
+    const dx = fx.tx - fx.sx, dy = fx.ty - fx.sy;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len; // 수직 단위 벡터
+    const cpx = mx + nx * curve, cpy = my + ny * curve;
+
+    bCtx.save();
+    bCtx.globalAlpha = p;
+    // 선 (곡선 여부에 따라 quadraticCurve 또는 직선)
+    const grad = bCtx.createLinearGradient(fx.sx,fx.sy,fx.tx,fx.ty);
+    grad.addColorStop(0,'rgba(0,240,255,0)');
+    grad.addColorStop(0.4,'rgba(0,240,255,0.9)');
+    grad.addColorStop(1,'rgba(255,235,59,1)');
+    bCtx.strokeStyle = grad;
+    bCtx.lineWidth   = 3 + p*4;
+    bCtx.shadowColor = '#ffb41e'; bCtx.shadowBlur = 20;
+    bCtx.beginPath();
+    bCtx.moveTo(fx.sx, fx.sy);
+    if (curve) bCtx.quadraticCurveTo(cpx, cpy, fx.tx, fx.ty);
+    else bCtx.lineTo(fx.tx, fx.ty);
+    bCtx.stroke();
+    // 선단 원
+    bCtx.fillStyle = '#ffeb3b'; bCtx.shadowColor='#ffeb3b'; bCtx.shadowBlur=18;
+    bCtx.beginPath();
+    // 진행도에 따라 선단 위치 계산 (초반엔 느리게, 중반부터 원래 속도로 따라잡는 이징)
+    const u = 1 - p; // 경과 비율 0→1
+    const eased = u < 0.5 ? (u * u) : (0.25 + 1.5 * (u - 0.5));
+    const prog = 0.5 + eased * 0.5;
+    let hx, hy;
+    if (curve) {
+      const t = prog;
+      const omt = 1 - t;
+      hx = omt*omt*fx.sx + 2*omt*t*cpx + t*t*fx.tx;
+      hy = omt*omt*fx.sy + 2*omt*t*cpy + t*t*fx.ty;
+    } else {
+      hx = fx.sx + (fx.tx-fx.sx)*prog;
+      hy = fx.sy + (fx.ty-fx.sy)*prog;
+    }
+    bCtx.arc(hx, hy, 5+p*4, 0, Math.PI*2); bCtx.fill();
+    bCtx.restore();
+  });
+
+  // 피격 스파크
+  hitSparks.forEach(s => {
+    const p = s.life/s.maxLife;
+    bCtx.save();
+    bCtx.globalAlpha = p;
+    bCtx.fillStyle = s.col; bCtx.shadowColor=s.col; bCtx.shadowBlur=10;
+    bCtx.beginPath(); bCtx.arc(s.x,s.y,3*p,0,Math.PI*2); bCtx.fill();
+    bCtx.restore();
+  });
+
+  // 스킬 이펙트
+  skillFX.forEach(f => {
+    const p = f.life/f.maxLife;
+    bCtx.save(); bCtx.globalAlpha = p*0.9;
+    if(f.type==='ring') {
+      bCtx.strokeStyle='#ffcc44'; bCtx.shadowColor='#ffcc44'; bCtx.shadowBlur=30;
+      bCtx.lineWidth = 6*p;
+      bCtx.beginPath(); bCtx.arc(f.cx,f.cy,f.r,0,Math.PI*2); bCtx.stroke();
+      // 두번째 링
+      bCtx.strokeStyle='#ffb41e'; bCtx.shadowColor='#ffb41e'; bCtx.lineWidth=3*p;
+      bCtx.beginPath(); bCtx.arc(f.cx,f.cy,f.r*0.6,0,Math.PI*2); bCtx.stroke();
+    } else {
+      bCtx.fillStyle=f.col; bCtx.shadowColor=f.col; bCtx.shadowBlur=14;
+      bCtx.beginPath(); bCtx.arc(f.x,f.y,4*p,0,Math.PI*2); bCtx.fill();
+    }
+    bCtx.restore();
+  });
+}
+let bossLoopRunning = false;
+
+function exploreLoop() {
+  if(G.scene!=='boss') requestAnimationFrame(exploreLoop);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawExploreBackground();
+  drawGround();
+  drawPlatforms();
+  drawPortals();
+  drawJumpParticles();
+  drawExplorePlayer();
+  updatePlayer();
+}
+
+function bossLoop() {
+  if(G.scene!=='explore') requestAnimationFrame(bossLoop);
+  bCtx.clearRect(0,0,bCanvas.width,bCanvas.height);
+  drawBossBackground();
+  drawBossGround();
+  drawBossSprite();
+  drawBeams();
+  drawAttackFX();
+  drawBossJumpParticles();
+  drawBossPlayer();
+  updateBossPlayer();
+  updateBeams();
+  updateBossJumpParticles();
+  updateAttackFX();
+}
+
+/* ════════════════════════════════════
+   튜토리얼
+════════════════════════════════════ */
+let tutorialDone = false;
+G.tutorialDone = false;
+let tutorialActive = false;
+const TUT_Q = { correct:'(x − 5)²', wrong:['(x − 10)²', '(x − 2)²'] };
+let tutCorrectIdx = -1;
+
+function openTutorial() {
+  popupOpen = true;
+  tutorialActive = true;
+  const ov = document.getElementById('tutorial-overlay');
+  ov.style.display = 'flex';
+  ov.style.opacity = '0';
+  requestAnimationFrame(() => { ov.style.opacity = '1'; });
+  renderTutChoices();
+}
+
+function renderTutChoices() {
+  const options = [TUT_Q.correct, ...TUT_Q.wrong];
+  for (let i = options.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [options[i], options[j]] = [options[j], options[i]];
+  }
+  tutCorrectIdx = options.indexOf(TUT_Q.correct);
+  const row = document.getElementById('tut-choice-row');
+  row.innerHTML = '';
+  options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'bq-mc-btn';
+    btn.innerHTML = `<span class="bq-mc-num">${i+1}</span> ${opt}`;
+    btn.onclick = () => checkTutorialChoice(i);
+    row.appendChild(btn);
+  });
+  const fb = document.getElementById('tut-fb');
+  fb.className = 'tut-fb'; fb.textContent = '';
+}
+
+function tutShowAnswer() {
+  checkTutorialChoice(tutCorrectIdx);
+}
+
+function checkTutorialChoice(idx) {
+  const btns = document.querySelectorAll('#tut-choice-row .bq-mc-btn');
+  if (!btns.length || btns[0].disabled) return;
+
+  if (idx === tutCorrectIdx) {
+    btns.forEach(b => b.disabled = true);
+    btns[idx].classList.add('ok');
+    const popup = document.getElementById('eqa-correct-popup');
+    if (popup) {
+      popup.classList.add('show');
+      clearTimeout(popup._hideTimer);
+      popup._hideTimer = setTimeout(() => popup.classList.remove('show'), 900);
+    }
+    document.getElementById('tut-enter-btn').classList.add('on');
+    tutorialDone = true;
+    G.tutorialDone = true;
+  } else {
+    btns[idx].classList.add('ng');
+    setTimeout(() => btns[idx].classList.remove('ng'), 400);
+  }
+}
+
+function closeTutorialCancel() {
+  tutorialActive = false;
+  const ov = document.getElementById('tutorial-overlay');
+  ov.style.opacity = '0';
+  setTimeout(() => { ov.style.display = 'none'; }, 350);
+  popupOpen = false;
+  const bossPlat = getPlatforms()[5];
+  P.x = bossPlat.x + bossPlat.w/2 - P.w/2; P.y = bossPlat.y - P.h;
+  P.vx = 0; P.vy = 0; P.onGround = true; P.jumpCount = 0;
+}
+
+function closeTutorial() {
+  if (!tutorialDone) return;
+  tutorialActive = false;
+  const ov = document.getElementById('tutorial-overlay');
+  ov.style.opacity = '0';
+  setTimeout(() => { ov.style.display = 'none'; }, 350);
+  popupOpen = false;
+  // 바로 보스 씬으로 이어서 진입
+  setTimeout(() => {
+    if (!G.bossIntroShown) {
+      G.bossIntroShown = true;
+      showBossIntro();
+    } else {
+      enterBossScene();
+    }
+  }, 400);
+}
+
+exploreLoop();
+
+/* ════════════════════════════════════
+   공식 팝업 — KaTeX 렌더 + 증명
+════════════════════════════════════ */
+/* ════════════════════════════════════
+   공식 Q&A 엔진
+════════════════════════════════════ */
+(function initFormulaQA() {
+
+  // 캐릭터 이미지 base64 대신 업로드 경로 사용 (인라인 img src)
+  const TEACHER_IMG = '/mnt/user-data/uploads/1780967690516_image.png';
+
+  /* ─── Q&A 데이터 ─── */
+  const QA = [
+    {
+      // Q1 — 준비 확인
+      q: `다항식의 제곱 형태, <span class="math">(□)²</span> 의 식을 <strong style="color:#ffb41e;">완전제곱식</strong>이라고 해요.<br>
+          지금부터 완전제곱식 인수분해 공식<br>
+          <span class="math">a²+2ab+b² = (a+b)²</span>,&nbsp;
+          <span class="math">a²−2ab+b² = (a−b)²</span><br>
+          을 학습할 거예요. 준비 되었나요?`,
+      choices: ['네, 시작할게요!', '아니요, 아직은요'],
+      correct: 0,
+      comment_ng:   { type:'info', text:'준비가 되면 언제든 다시 오세요! 기다리고 있을게요', end: true },
+      auto_advance: true,
+    },
+    {
+      // Q2 — 전개 확인
+      q: `<span class="math">(a+b)² = a²+2ab+b²</span> 이므로,<br>
+          다항식 <span class="math">a²+2ab+b²</span> 은 <span class="math">(a+b)²</span> 으로 인수분해 할 수 있어요.<br>
+          즉, <span class="math">a²+2ab+b² = (a+b)²</span> 인 것이죠!`,
+      choices: ['다음으로!'],
+      correct: 0,
+      auto_advance: true,
+    },
+    {
+      // Q3 — 예시 문제 예고
+      q: `지금부터 완전제곱식 공식을 적용해 볼 거예요.<br>
+          다항식 <span class="math">x²+6x+9</span> 가 완전제곱식인지,<br>
+          된다면 어떻게 인수분해 되는지 알아봅시다.`,
+      choices: ['알겠어요, 해볼게요!'],
+      correct: 0,
+      auto_advance: true,
+    },
+    {
+      // Q4 — 첫·끝 항 찾기
+      q: `완전제곱식인지 판단하려면 <span class="math">x²+6x+9</span> 에서<br>
+          <strong style="color:#ffeb3b;">첫 번째 항</strong>과 <strong style="color:#ffeb3b;">세 번째 항</strong>에 주목해야 해요.<br>
+          위 다항식에서 첫 번째, 세 번째 항이 무엇인가요?`,
+      hint_formula: true,
+      choices: ['x²과 9', 'x²과 6x', '6x와 9'],
+      correct: 0,
+      comment_ok: null,
+      comment_ng:   { type:'info', text:'다시 생각해 보세요. 첫 번째 항은 x², 세 번째 항은 9예요!' },
+      auto_advance: true,
+    },
+    {
+      // Q5 — a 찾기
+      q: `제곱해서 <span class="math">x²</span> 이 되는 식을 골라보세요.`,
+      hint_formula: true,
+      choices: ['x', '2x'],
+      correct: 0,
+      comment_ok: null,
+      comment_ng:   { type:'info', text:'<span class="math">2x × 2x = 4x²</span> 이 돼서 틀려요. 다시 골라 보세요!' },
+      auto_advance: true,
+    },
+    {
+      // Q6 — b 찾기
+      q: `제곱해서 <span class="math">9</span> 가 되는 수를 골라보세요.`,
+      hint_formula: true,
+      choices: ['3', '−3'],
+      correct: -1,  // 아무거나 OK
+      comment_ok: null,
+      auto_advance: true,
+    },
+    {
+      // Q7 — 비교표로 2ab 검증
+      q: `<span class="math">b²=9</span> 를 만족하는 <span class="math">b</span> 는 3과 -3 모두 가능해요.<br>
+          <span class="math">a²+2ab+b²</span> 과 <span class="math">x²+6x+9</span> 를 나란히 비교해볼게요.<br>
+          각 항을 맞춰보면, 가운데 항 <span class="math">2ab</span> 에 해당하는 <span class="math">b</span> 는 무엇일까요?`,
+      table: true,
+      choices: ['b = 3', 'b = 2', 'b = 9'],
+      correct: 0,
+      comment_ok: { type:'ok', text:'맞아요! <span class="math">2×a×b = 6x</span> 를 만족하는 <span class="math">a = x</span>, <span class="math">b = 3</span> 이므로,<br><span class="math">x²+6x+9 = (x+3)²</span> 입니다.' },
+      comment_ng:   { type:'info', text:'표를 다시 보세요. <span class="math">2ab = 2×a×b = 6x</span> 가 되려면 b = 3 이어야 해요!' },
+      auto_advance: false,
+    },
+    {
+      // Q8 — 비교표 완성 + 최종 답 선언
+      q: `세 가지 조건이 모두 맞았어요!<br>
+          <span class="math">a = x</span>, <span class="math">b = 3</span> 을 대입하면 최종 답이 완성돼요.`,
+      table_final: true,
+      choices: ['다음으로!'],
+      correct: 0,
+      comment_ok: null,
+      auto_advance: true,
+    },
+    {
+      // Q9 — 단계 정리 + 애니메이션
+      q: `지금까지 푼 과정을 정리해볼게요!`,
+      summary: true,
+      choices: ['마무리하기', '처음부터 다시 학습하기'],
+      correct: -2,
+      comment_ok: null,
+    },
+  ];
+
+  let fqaIdx = 0;
+  let fqaUserChoice = null; // Q6 선택값 저장
+  let fqaOriginalQ = '';
+
+  function render() {
+    const wrap = document.getElementById('fqa-wrap');
+    const endEl = document.getElementById('fqa-end');
+    const progEl = document.getElementById('fqa-progress');
+    if (!wrap || !endEl || !progEl) return;
+
+    wrap.style.display = '';
+    endEl.classList.remove('show');
+
+    const q = QA[fqaIdx];
+    fqaOriginalQ = q.q;
+
+    // 진행 도트 — 클릭 시 해당 질문으로 이동
+    progEl.innerHTML = '';
+    QA.forEach((_,i) => {
+      const d = document.createElement('div');
+      d.className = 'fqa-dot' + (i < fqaIdx ? ' done' : i === fqaIdx ? ' cur' : '');
+      d.textContent = i + 1;
+      d.style.cursor = 'pointer';
+      d.title = `${i+1}번 질문으로 이동`;
+      d.addEventListener('click', () => { fqaIdx = i; render(); });
+      progEl.appendChild(d);
+    });
+
+    // 빌드
+    wrap.innerHTML = `
+      <div class="fqa-main-row">
+        <div class="fqa-teacher-col">
+          <img class="fqa-teacher-img" src="image/teacher.png" alt="선생님">
+        </div>
+        <div class="fqa-right-col">
+          <div class="fqa-bubble" id="fqa-bubble">
+            <div class="fqa-bubble-name">‍TEACHER</div>
+            ${q.q}
+          </div>
+          ${q.table ? `
+          <table class="fqa-compare-table">
+            <tbody>
+              <tr class="row-formula">
+                <td class="row-label">공식</td>
+                <td class="hl-a">a²</td>
+                <td class="hl-plus">+</td>
+                <td class="hl-mid">2ab</td>
+                <td class="hl-plus">+</td>
+                <td class="hl-b">b²</td>
+              </tr>
+              <tr class="row-example">
+                <td class="row-label">예제</td>
+                <td class="hl-a">x²</td>
+                <td class="hl-plus">+</td>
+                <td class="hl-mid">6x</td>
+                <td class="hl-plus">+</td>
+                <td class="hl-b">9</td>
+              </tr>
+              <tr class="row-example" style="border-top:2px solid rgba(255,235,59,0.3);">
+                <td class="row-label" style="color:#ffeb3b;">비교</td>
+                <td class="hl-a">a = x</td>
+                <td class="hl-plus">+</td>
+                <td class="hl-q">2×a×<strong style="color:#ffeb3b;font-size:1.2em;">b</strong> = 6x</td>
+                <td class="hl-plus">+</td>
+                <td class="hl-b">b² = 9</td>
+              </tr>
+            </tbody>
+          </table>` : ''}
+          ${q.table_final ? `
+          <table class="fqa-compare-table">
+              <tr class="row-formula">
+                <td class="row-label">공식</td>
+                <td class="hl-a">a²</td>
+                <td class="hl-plus">+</td>
+                <td class="hl-mid">2ab</td>
+                <td class="hl-plus">+</td>
+                <td class="hl-b">b²</td>
+              </tr>
+              <tr class="row-example">
+                <td class="row-label">예제</td>
+                <td class="hl-a">x²</td>
+                <td class="hl-plus">+</td>
+                <td class="hl-mid">6x</td>
+                <td class="hl-plus">+</td>
+                <td class="hl-b">9</td>
+              </tr>
+              <tr class="row-example" style="border-top:2px solid rgba(127,255,0,0.4);">
+                <td class="row-label" style="color:#7fff00;">비교 ✓</td>
+                <td class="hl-a">a = x</td>
+                <td class="hl-plus">+</td>
+                <td class="hl-mid" style="color:#7fff00;">2×x×3 = 6x ✓</td>
+                <td class="hl-plus">+</td>
+                <td class="hl-b">b = 3</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="padding:16px 20px;background:rgba(127,255,0,0.08);border:2px solid #7fff00;box-shadow:0 0 18px rgba(127,255,0,0.2);">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:clamp(18px,3vw,26px);font-weight:700;color:rgba(255,235,59,0.75);letter-spacing:1px;margin-bottom:6px;text-align:center;">
+              a² + 2ab + b² = (a+b)²
+            </div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;font-size:12px;font-family:'Outfit',sans-serif;font-weight:600;flex-wrap:wrap;">
+              <span style="background:rgba(255,180,30,0.18);border:1px solid rgba(0,240,255,0.5);color:#ffb41e;padding:3px 10px;">a 자리에 x 대입</span>
+              <span style="color:#555;">+</span>
+              <span style="background:rgba(127,255,0,0.15);border:1px solid rgba(127,255,0,0.5);color:#7fff00;padding:3px 10px;">b 자리에 3 대입</span>
+              <span style="color:#ffeb3b;font-size:16px;">↓</span>
+            </div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:clamp(18px,3vw,26px);font-weight:700;color:#7fff00;letter-spacing:2px;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
+              x² + 6x + 9 = (
+              <input class="eqa-input" id="tf-in1" maxlength="3" style="width:52px;text-align:center;">
+              +
+              <input class="eqa-input" id="tf-in2" maxlength="3" style="width:52px;text-align:center;">
+              )²
+            </div>
+            <div style="text-align:center;margin-top:10px;">
+              <div style="font-size:13px;color:#ffcf7a;font-family:'Jua',sans-serif;margin-bottom:8px;">네모에 알맞은 수를 채우세요!</div>
+              <div style="position:relative;display:flex;align-items:center;justify-content:center;min-height:44px;">
+                <button class="fq-check-btn" onclick="tfCheck()">확인</button>
+                <button onclick="tfShowAnswer()" style="position:absolute;right:0;
+                  font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;
+                  padding:10px 20px;background:transparent;color:#00f0ff;border:2px solid #00f0ff;
+                  cursor:pointer;text-transform:uppercase;transition:transform 0.15s,background 0.15s;"
+                  onmouseover="this.style.background='rgba(0,240,255,0.15)';this.style.transform='translate(-2px,-2px)';"
+                  onmouseout="this.style.background='transparent';this.style.transform='translate(0,0)';">정답보기</button>
+              </div>
+            </div>
+          </div>` : ''}
+          ${q.summary ? `
+          <div class="fqa-summary-box" id="fqa-summary-box">
+            <div class="fqa-sum-problem">x² + <span class="s-mid">6x</span> + 9</div>
+            <div class="fqa-sum-steps">
+              <div class="fqa-sum-step" id="fqs1">
+                <span class="fqs-num">1</span>
+                <span class="fqs-text">제곱해서 <strong class="sc">x²</strong> 이 되는 수 →</span>
+                <span class="fqs-val sc">x</span>
+              </div>
+              <div class="fqa-sum-step" id="fqs2">
+                <span class="fqs-num">2</span>
+                <span class="fqs-text">제곱해서 <strong class="sg">9</strong> 가 되는 수 →</span>
+                <span class="fqs-val sg">3</span>
+              </div>
+              <div class="fqa-sum-step" id="fqs3">
+                <span class="fqs-num">3</span>
+                <span class="fqs-text">가운데 항 확인</span>
+              </div>
+            </div>
+            <!-- 애니메이션 영역 -->
+            <div class="fqa-anim-wrap" id="fqa-anim-wrap">
+              <!-- x² + 6x + 9 와 화살표를 같은 grid로 정렬 -->
+              <div style="display:grid; grid-template-columns: 1fr 24px 1fr 24px 1fr; align-items:end; justify-items:center; margin-bottom:2px;">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:clamp(20px,3vw,28px);font-weight:700;color:#fff;">x²</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:clamp(18px,3vw,26px);font-weight:700;color:rgba(255,255,255,0.4);">+</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:clamp(20px,3vw,28px);font-weight:700;color:#ff7a00;">6x</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:clamp(18px,3vw,26px);font-weight:700;color:rgba(255,255,255,0.4);">+</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:clamp(20px,3vw,28px);font-weight:700;color:#fff;">9</span>
+              </div>
+              <div style="display:grid; grid-template-columns: 1fr 24px 1fr 24px 1fr; justify-items:center;">
+                <div class="fqa-arrow-x" id="faa-x">
+                  <div class="faa-line"></div>
+                  <div class="faa-label sc">(x)²</div>
+                </div>
+                <div></div>
+                <div></div>
+                <div></div>
+                <div class="fqa-arrow-3" id="faa-3">
+                  <div class="faa-line"></div>
+                  <div class="faa-label sg">(3)²</div>
+                </div>
+              </div>
+              <div class="fqa-anim-calc" id="fqa-anim-calc">
+                <span style="color:rgba(255,255,255,0.9);">2</span>
+                <span class="fac-op"> × </span>
+                <span class="sc" style="font-size:1.1em;">x</span>
+                <span class="fac-op"> × </span>
+                <span class="sg" style="font-size:1.1em;">3</span>
+                <span class="fac-eq"> = </span>
+                <span class="fac-result">6x ✓</span>
+              </div>
+            </div>
+            <div class="fqa-sum-answer" id="fqa-sum-answer">
+              x² + 6x + 9 = <span style="color:#7fff00;">(</span><span style="color:#ffb41e;">x</span><span style="color:#7fff00;">+3)²</span>
+            </div>
+          </div>` : ''}
+          <div class="fqa-choices" id="fqa-choices"></div>
+        </div>
+      </div>
+      <button class="fqa-next-btn" id="fqa-next-btn" onclick="fqaNext()">다음 →</button>
+    `;
+
+    const choicesEl = document.getElementById('fqa-choices');
+    q.choices.forEach((text, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'fqa-choice-btn';
+      btn.innerHTML = q.choices.length === 1 ? text : `<span style="color:#ffb41e;font-family:'JetBrains Mono',monospace;margin-right:10px;">${['①','②','③'][i]}</span>${text}`;
+      btn.onclick = () => fqaChoose(i, btn);
+      choicesEl.appendChild(btn);
+    });
+
+    // Q8(table_final): 빈칸을 맞추기 전까지 다음으로! 비활성화
+    if (q.table_final) {
+      choicesEl.querySelectorAll('.fqa-choice-btn').forEach(b => b.classList.add('disabled'));
+    }
+
+    // Q9 요약 애니메이션 자동 실행
+    if (q.summary) fqaRunSummaryAnim();
+  }
+
+  function fqaRunSummaryAnim() {
+    const show = (id, delay) => setTimeout(() => document.getElementById(id)?.classList.add('vis'), delay);
+    // 단계 1,2,3 순서대로 등장
+    show('fqs1', 200);
+    show('fqs2', 700);
+    show('fqs3', 1200);
+    // 애니메이션 wrap 등장
+    setTimeout(() => document.getElementById('fqa-anim-wrap')?.classList.add('vis'), 1600);
+    // 화살표: x, 3 순서대로
+    show('faa-x', 2000);
+    show('faa-3', 2500);
+    // 계산식
+    setTimeout(() => document.getElementById('fqa-anim-calc')?.classList.add('vis'), 3000);
+    // 최종 답
+    setTimeout(() => document.getElementById('fqa-sum-answer')?.classList.add('vis'), 3800);
+  }
+
+  window.tfShowAnswer = function() {
+    const in1 = document.getElementById('tf-in1');
+    const in2 = document.getElementById('tf-in2');
+    if (!in1 || !in2) return;
+    in1.value = 'x'; in2.value = '3';
+    tfCheck();
+  };
+
+  window.tfCheck = function() {
+    const in1 = document.getElementById('tf-in1');
+    const in2 = document.getElementById('tf-in2');
+    if (!in1 || !in2) return;
+    const ok1 = in1.value.trim().toLowerCase() === 'x';
+    const ok2 = in2.value.trim() === '3';
+    in1.classList.toggle('ok', ok1); in1.classList.toggle('ng', !ok1);
+    in2.classList.toggle('ok', ok2); in2.classList.toggle('ng', !ok2);
+    if (ok1 && ok2) {
+      in1.disabled = true; in2.disabled = true;
+      const popup = document.getElementById('eqa-correct-popup');
+      if (popup) {
+        popup.classList.add('show');
+        clearTimeout(popup._hideTimer);
+        popup._hideTimer = setTimeout(() => popup.classList.remove('show'), 900);
+      }
+      document.querySelectorAll('.fqa-choice-btn').forEach(b => b.classList.remove('disabled'));
+    } else {
+      setTimeout(() => { in1.classList.remove('ng'); in2.classList.remove('ng'); }, 500);
+    }
+  };
+
+window.fqaChoose = function(i, btn) {
+    const q = QA[fqaIdx];
+    const bubbleEl  = document.getElementById('fqa-bubble');
+    const nextBtn   = document.getElementById('fqa-next-btn');
+    const allBtns   = document.querySelectorAll('.fqa-choice-btn');
+
+    function updateBubble(text) {
+      if (!bubbleEl || !text) return;
+      let fbLine = bubbleEl.querySelector('.fqa-feedback-line');
+      if (!fbLine) {
+        fbLine = document.createElement('div');
+        fbLine.className = 'fqa-feedback-line';
+        bubbleEl.appendChild(fbLine);
+      }
+      fbLine.classList.remove('show');
+      fbLine.innerHTML = text;
+      requestAnimationFrame(() => fbLine.classList.add('show'));
+    }
+
+    // Q9 특수 처리 (마무리/다시)
+    if (q.correct === -2) {
+      allBtns.forEach(b => b.classList.add('disabled'));
+      btn.classList.add('selected-ok');
+      if (i === 1) { fqaRestart(); return; }
+      fqaShowEnd(); return;
+    }
+
+    // Q6: 아무거나 OK
+    const isOk = q.correct === -1 ? true : (i === q.correct);
+    window.dispatchEvent(new CustomEvent('fqa-answer', { detail: { q: fqaIdx, correct: isOk } })); // 추적용 신호 (기존 로직에 영향 없음)
+    fqaUserChoice = i; // Q6 선택 저장
+
+    allBtns.forEach(b => b.classList.add('disabled'));
+    btn.classList.add(isOk ? 'selected-ok' : 'selected-ng');
+
+    // 오답이면 바로 버튼 재활성화
+    if (!isOk) {
+      const comment = q.comment_ng;
+      if (comment) updateBubble(comment.text);
+      btn.classList.remove('selected-ng','disabled');
+      allBtns.forEach(b => b.classList.remove('disabled'));
+      return;
+    }
+
+    // 정답
+    const comment = q.comment_ok;
+    if (comment) updateBubble(comment.text);
+    if (q.auto_advance) {
+      setTimeout(() => fqaNext(), comment ? 900 : 300);
+    } else {
+      const choicesEl = document.getElementById('fqa-choices');
+      if (choicesEl && !choicesEl.querySelector('.fqa-next-choice')) {
+        const nb = document.createElement('button');
+        nb.className = 'fqa-choice-btn fqa-next-choice';
+        nb.style.cssText = 'border-color:#ffb41e;color:#ffb41e;font-weight:700;';
+        nb.textContent = '다음';
+        nb.onclick = () => fqaNext();
+        choicesEl.appendChild(nb);
+      }
+    }
+  };
+
+  window.fqaNext = function() {
+    if (fqaIdx >= QA.length - 1) { fqaShowEnd(); return; }
+    fqaIdx++;
+    render();
+  };
+
+  function fqaShowEnd() {
+    const wrap = document.getElementById('fqa-wrap');
+    const endEl = document.getElementById('fqa-end');
+    const progEl = document.getElementById('fqa-progress');
+    if (wrap) wrap.style.display = 'none';
+    if (endEl) endEl.classList.add('show');
+    if (progEl) {
+      progEl.querySelectorAll('.fqa-dot').forEach(d => { d.classList.add('done'); d.classList.remove('cur'); });
+    }
+  }
+
+  window.fqaRestart = function() {
+    fqaIdx = 0; fqaUserChoice = null; render();
+  };
+
+  window.addEventListener('load', () => {});
+})();
+
+
+
+/* ════════════════════════════════════
+   예제 학습 Q&A 엔진
+════════════════════════════════════ */
+(function initExampleQA() {
+
+  const EQA = [
+    { stage:1, idx:1, terms:['x²','2x','1'],   a:'x',  aSq:'x²',  b:'1',  bSq:'1'  },
+    { stage:1, idx:2, terms:['x²','8x','16'],  a:'x',  aSq:'x²',  b:'4',  bSq:'16' },
+    { stage:1, idx:3, terms:['x²','-2x','1'],  a:'x',  aSq:'x²',  b:'-1', bSq:'1'  },
+    { stage:1, idx:4, terms:['x²','-8x','16'], a:'x',  aSq:'x²',  b:'-4', bSq:'16' },
+    { stage:1, idx:5, terms:['4x²','12x','9'], a:'2x', aSq:'4x²', b:'3',  bSq:'9'  },
+    { stage:1, idx:6, terms:['9x²','-6x','1'], a:'3x', aSq:'9x²', b:'-1', bSq:'1'  },
+  ];
+
+  let eqaIdx = 0;
+
+  function render() {
+    const wrap  = document.getElementById('eqa-wrap');
+    const endEl = document.getElementById('eqa-end');
+    const progEl= document.getElementById('eqa-progress');
+    if (!wrap || !endEl || !progEl) return;
+
+    wrap.style.display = '';
+    endEl.classList.remove('show');
+
+    progEl.innerHTML = '';
+    EQA.forEach((_,i) => {
+      const d = document.createElement('div');
+      d.className = 'eqa-dot' + (i < eqaIdx ? ' done' : i === eqaIdx ? ' cur' : '');
+      d.textContent = i + 1;
+      d.title = `${i+1}번 문제로 이동`;
+      d.addEventListener('click', () => { eqaIdx = i; render(); });
+      progEl.appendChild(d);
+    });
+
+    const q = EQA[eqaIdx];
+
+    // 부호 분리 헬퍼: '-8x' → {op:'−', mag:'8x'}, '2x' → {op:'+', mag:'2x'}
+    function splitSign(str) {
+      str = String(str);
+      return str.startsWith('-') ? { op:'−', mag: str.slice(1) } : { op:'+', mag: str };
+    }
+    const mid = splitSign(q.terms[1]);
+    const poly = `${q.terms[0]} ${mid.op} ${mid.mag} + ${q.terms[2]}`;
+    const bNeg = String(q.b).startsWith('-');
+    const bOpen = bNeg ? '(' : '';
+    const bClose = bNeg ? ')' : '';
+
+    wrap.innerHTML = `
+      <div class="eqa-stage-label">STAGE ${q.stage} · 문제 ${q.idx}</div>
+      <div class="eqa-bubble">다음을 인수분해하시오.</div>
+      <div class="eqa-poly">${q.terms[0]} ${mid.op} <span class="eqa-mid">${mid.mag}</span> + <span class="eqa-last">${q.terms[2]}</span></div>
+
+      <div class="eqa-step s1">
+        <span class="eqa-num">1</span>
+        제곱해서 <b style="color:#fff;">${q.aSq}</b> 이 되는 식 →
+        <input class="eqa-input slot-a" data-slot="a" id="eqa-master-a" maxlength="4">
+      </div>
+      <div class="eqa-step s2">
+        <span class="eqa-num">2</span>
+        제곱해서 <b style="color:#7fff00;">${q.bSq}</b> 가 되는 수 →
+        <input class="eqa-input slot-b" data-slot="b" id="eqa-master-b" maxlength="4">
+      </div>
+      <div class="eqa-step s3">
+        <span class="eqa-num">3</span>
+        가운데 항 확인
+      </div>
+      <div class="eqa-calc">
+        2 × <input class="eqa-input slot-a" data-slot="a" maxlength="4">
+        × <input class="eqa-input slot-b" data-slot="b" maxlength="4">
+        = <span style="color:#ff7a00;">${mid.op === '−' ? '−' : ''}${mid.mag}</span>
+        <span class="eqa-check-mark" id="eqa-check-mark">✓</span>
+      </div>
+      <div class="eqa-final">
+        ${poly} = ( <input class="eqa-input slot-a" data-slot="a" maxlength="4">
+        + ${bOpen}<input class="eqa-input slot-b" data-slot="b" maxlength="4">${bClose} )²
+        <span class="eqa-simplified" id="eqa-simplified"></span>
+      </div>
+
+      <div class="eqa-btn-row">
+        <button class="eqa-check-btn" onclick="eqaCheck()">확인</button>
+        <button class="eqa-answer-btn" onclick="eqaShowAnswer()">정답보기</button>
+        <button class="eqa-next-btn" id="eqa-next-btn" onclick="eqaNext()">다음 →</button>
+      </div>
+    `;
+
+    wrap.querySelectorAll('.eqa-input').forEach(inp => {
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') eqaCheck(); });
+    });
+
+    // 1·2번 입력칸에 쓰면 같은 슬롯의 다른 칸도 자동으로 채워짐
+    const masterA = document.getElementById('eqa-master-a');
+    const masterB = document.getElementById('eqa-master-b');
+    masterA?.addEventListener('input', () => {
+      wrap.querySelectorAll('.slot-a').forEach(el => { if (el !== masterA) el.value = masterA.value; });
+    });
+    masterB?.addEventListener('input', () => {
+      wrap.querySelectorAll('.slot-b').forEach(el => { if (el !== masterB) el.value = masterB.value; });
+    });
+
+    wrap.querySelector('.eqa-input')?.focus();
+  }
+
+  window.eqaCheck = function() {
+    const q = EQA[eqaIdx];
+    const wrap = document.getElementById('eqa-wrap');
+    const inputs = wrap.querySelectorAll('.eqa-input');
+    let allOk = true;
+
+    inputs.forEach(inp => {
+      const slot = inp.dataset.slot;
+      const expect = (slot === 'a') ? q.a : q.b;
+      const val = inp.value.trim().toLowerCase();
+      const ok = val !== '' && val === String(expect).toLowerCase();
+      inp.classList.remove('ok','ng');
+      if (ok) {
+        inp.classList.add('ok');
+        inp.disabled = true;
+      } else {
+        inp.classList.add('ng');
+        setTimeout(()=>inp.classList.remove('ng'),400);
+        allOk = false;
+      }
+    });
+
+    const mark = document.getElementById('eqa-check-mark');
+    if (allOk) {
+      mark?.classList.add('show');
+      document.getElementById('eqa-next-btn')?.classList.add('show');
+      if (String(q.b).startsWith('-')) {
+        const simp = document.getElementById('eqa-simplified');
+        if (simp) {
+          simp.textContent = `= (${q.a}−${String(q.b).slice(1)})²`;
+          requestAnimationFrame(() => simp.classList.add('show'));
+        }
+      }
+      const popup = document.getElementById('eqa-correct-popup');
+      if (popup) {
+        popup.classList.add('show');
+        clearTimeout(popup._hideTimer);
+        popup._hideTimer = setTimeout(() => popup.classList.remove('show'), 900);
+      }
+    }
+  };
+
+  window.eqaShowAnswer = function() {
+    const q = EQA[eqaIdx];
+    const wrap = document.getElementById('eqa-wrap');
+    if (!wrap) return;
+    wrap.querySelectorAll('.eqa-input').forEach(inp => {
+      const slot = inp.dataset.slot;
+      inp.value = (slot === 'a') ? q.a : q.b;
+      inp.classList.remove('ng');
+    });
+  };
+
+  window.eqaNext = function() {
+    if (eqaIdx >= EQA.length - 1) { eqaShowEnd(); return; }
+    eqaIdx++;
+    render();
+  };
+
+  function eqaShowEnd() {
+    const wrap  = document.getElementById('eqa-wrap');
+    const endEl = document.getElementById('eqa-end');
+    const progEl= document.getElementById('eqa-progress');
+    if (wrap)  wrap.style.display = 'none';
+    if (endEl) endEl.classList.add('show');
+    if (progEl) progEl.querySelectorAll('.eqa-dot').forEach(d => { d.classList.add('done'); d.classList.remove('cur'); });
+  }
+
+  window.eqaRestart = function() {
+    eqaIdx = 0;
+    render();
+  };
+
+})();
+
+/* ════════════════════════════════════
+   배경음악
+════════════════════════════════════ */
+const bgmMain = new Audio('sound/sound_1.mp3');
+bgmMain.loop = true; bgmMain.volume = 0.5;
+const bgmBoss = new Audio('sound/sound_2.mp3');
+bgmBoss.loop = true; bgmBoss.volume = 0.5;
+
+let musicMuted = false;
+let audioUnlocked = false;
+
+function currentBgm() { return (typeof G !== 'undefined' && G.scene === 'boss') ? bgmBoss : bgmMain; }
+
+function playCurrentMusic() {
+  bgmMain.pause(); bgmBoss.pause();
+  if (musicMuted) return;
+  currentBgm().play().catch(()=>{});
+}
+function stopAllMusic() {
+  bgmMain.pause(); bgmBoss.pause();
+}
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  playCurrentMusic();
+}
+document.addEventListener('keydown', unlockAudio, { once:true });
+document.addEventListener('pointerdown', unlockAudio, { once:true });
+
+function toggleMusic() {
+  musicMuted = !musicMuted;
+  const btn = document.getElementById('music-toggle-btn');
+  if (musicMuted) {
+    stopAllMusic();
+    if (btn) btn.classList.add('muted');
+  } else {
+    playCurrentMusic();
+    if (btn) btn.classList.remove('muted');
+  }
+}
+</script>
+
+<!-- ══════════════════════════════════
+     학습 데이터 추적 (교사용 페이지 연동)
+     기존 게임 로직은 건드리지 않고, 이벤트/DOM 변화만 관찰해서 Firebase에 기록합니다.
+════════════════════════════════════ -->
+<script>
+(function(){
+  const STAGE_KEY = 'stage1';
+
+  function studentName() {
+    try { return localStorage.getItem('playerName') || null; } catch(e) { return null; }
+  }
+  function fbReady() { return !!(window.fbDb && window.fbUpdateDoc && window.fbDoc); }
+
+  function markCompleted(contentKey) {
+    const name = studentName();
+    if (!name || !fbReady()) return;
+    const field = {};
+    field[STAGE_KEY + '.' + contentKey + '.completed'] = true;
+    window.fbUpdateDoc(window.fbDoc(window.fbDb, 'students', name), field).catch(()=>{});
+  }
+  function markWrongQuestion(qNum) {
+    const name = studentName();
+    if (!name || !fbReady()) return;
+    const field = {};
+    field[STAGE_KEY + '.formula.wrongQuestions'] = window.fbArrayUnion(qNum);
+    window.fbUpdateDoc(window.fbDoc(window.fbDb, 'students', name), field).catch(()=>{});
+  }
+
+  // 공식배우기: fqaChoose에 추가된 신호 수신 (Q1은 제외, 1회 이상 오답만 기록)
+  window.addEventListener('fqa-answer', (e) => {
+    const { q, correct } = e.detail;
+    const qNum = q + 1;
+    if (!correct && qNum !== 1) markWrongQuestion(qNum);
+  });
+
+  // 완료 여부: 기존 DOM(class="show")을 그냥 지켜보기만 함 (무수정)
+  function watchCompletion(elId, contentKey) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    let done = false;
+    new MutationObserver(() => {
+      if (!done && el.classList.contains('show')) {
+        done = true;
+        markCompleted(contentKey);
+      }
+    }).observe(el, { attributes: true, attributeFilter: ['class'] });
+  }
+  watchCompletion('fqa-end', 'formula');
+  watchCompletion('eqa-end', 'example');
+
+  // 보스배틀: result-overlay가 뜨고 문구가 'CLEAR!'일 때만 완료 처리
+  const resultOverlay = document.getElementById('result-overlay');
+  if (resultOverlay) {
+    let bossDone = false;
+    new MutationObserver(() => {
+      if (resultOverlay.classList.contains('show')) {
+        const titleEl = document.getElementById('result-title');
+        if (!bossDone && titleEl && titleEl.textContent.trim() === 'STAGE CLEAR!') {
+          bossDone = true;
+          markCompleted('boss');
+        }
+      }
+    }).observe(resultOverlay, { attributes: true, attributeFilter: ['class'] });
+  }
+})();
+</script>
+
+</body>
+</html>

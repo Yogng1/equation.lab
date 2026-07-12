@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>삼차방정식 연구소 - 관제실</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Outfit:wght@400;600;700&family=JetBrains+Mono:wght@600;700&family=Jua&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#0a0612; color:#f1eefc;
+  font-family:'Outfit',sans-serif;
+  min-height:100vh;
+  padding:36px 24px 90px;
+}
+.wrap { max-width:1560px; margin:0 auto; }
+
+/* ── 헤더 ── */
+header {
+  background:#150c00; border:3px solid #ffcc44; border-radius:20px;
+  box-shadow:0 0 50px rgba(255,180,30,0.25), 6px 6px 0 rgba(0,0,0,0.5);
+  padding:32px 36px; margin-bottom:26px;
+}
+.header-eyebrow {
+  font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; letter-spacing:4px;
+  color:#a855f7; text-transform:uppercase; margin-bottom:8px;
+}
+h1 {
+  font-family:'Orbitron',sans-serif; font-weight:900; font-size:clamp(26px,4vw,38px);
+  letter-spacing:3px; color:#fff;
+  text-shadow:0 0 16px rgba(255,204,68,0.5);
+}
+.header-sub { font-family:'Jua',sans-serif; font-size:17px; color:rgba(255,255,255,0.6); margin-top:10px; }
+.mock-banner {
+  margin-top:18px; padding:16px 20px; border-radius:14px;
+  background:rgba(255,180,30,0.08); border:2px solid rgba(255,180,30,0.4);
+  font-family:'Jua',sans-serif; font-size:15px; color:#ffcf7a; line-height:1.7;
+}
+
+/* ── 요약 카드 ── */
+.summary-row { display:flex; gap:14px; margin:22px 0; flex-wrap:wrap; }
+.summary-card {
+  flex:1; min-width:180px; border-radius:16px;
+  background:#150c00; border:2px solid rgba(255,204,68,0.4);
+  box-shadow:5px 5px 0 rgba(0,0,0,0.4);
+  padding:22px 24px;
+  cursor:pointer; transition:transform 0.12s, border-color 0.15s;
+}
+.summary-card:hover { transform:translate(-2px,-2px); border-color:#ffcc44; }
+.summary-card.active { border-color:#ffcc44; background:rgba(255,204,68,0.1); box-shadow:5px 5px 0 rgba(0,0,0,0.4), 0 0 20px rgba(255,204,68,0.3); }
+.summary-num { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:38px; }
+.summary-label { font-family:'Jua',sans-serif; font-size:14px; color:rgba(255,255,255,0.6); margin-top:6px; }
+
+/* ── 범례 ── */
+.legend { display:flex; gap:24px; flex-wrap:wrap; margin-bottom:20px; font-family:'Jua',sans-serif; font-size:15px; color:rgba(255,255,255,0.7); }
+.legend-item { display:flex; align-items:center; gap:7px; }
+.legend-dot { width:17px; height:17px; flex-shrink:0; }
+
+/* ── 테이블 ── */
+.table-wrap {
+  background:#150c00; border:3px solid rgba(255,204,68,0.5); border-radius:20px;
+  box-shadow:6px 6px 0 rgba(0,0,0,0.5);
+  overflow-x:auto;
+}
+.t-head, .student-row {
+  display:grid;
+  grid-template-columns: 28px 48px 1.1fr repeat(5, 168px) 84px 32px;
+  align-items:center; gap:8px;
+  padding:16px 20px;
+  min-width:1360px;
+}
+.t-head {
+  font-family:'Orbitron',sans-serif; font-size:12px; letter-spacing:1.5px;
+  color:#ffb41e; text-transform:uppercase;
+  border-bottom:2px solid rgba(255,204,68,0.3);
+}
+.t-head .stage-col { text-align:center; }
+.student-row {
+  border-bottom:1px solid rgba(255,204,68,0.15);
+  cursor:pointer; transition:background 0.15s;
+}
+.student-row:hover { background:rgba(255,204,68,0.06); }
+.student-row:last-child { border-bottom:none; }
+.s-num { font-family:'JetBrains Mono',monospace; color:rgba(255,255,255,0.35); font-size:15px; }
+.s-name { font-family:'Jua',sans-serif; font-size:18px; }
+
+/* 스테이지 칩: 공식/예제/보스 3개 미니 배지를 한 묶음으로 */
+.stage-chip {
+  display:flex; gap:4px; justify-content:center; border-radius:12px;
+  padding:6px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02);
+}
+.mini-badge {
+  width:46px; height:32px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:12px;
+}
+.mini-badge.clean      { background:rgba(127,255,0,0.18); color:#7fff00; border:1.5px solid #7fff00; }
+.mini-badge.issue      { background:rgba(255,180,30,0.18); color:#ffb41e; border:1.5px solid #ffb41e; }
+.mini-badge.incomplete { background:rgba(255,255,255,0.04); color:rgba(255,255,255,0.28); border:1.5px dashed rgba(255,255,255,0.22); }
+
+.s-progress { font-family:'JetBrains Mono',monospace; font-size:14px; color:rgba(255,255,255,0.65); text-align:right; }
+.s-caret { text-align:center; color:#ffb41e; font-size:14px; transition:transform 0.2s; }
+.student-row.open .s-caret { transform:rotate(90deg); }
+
+/* ── 상세 패널 ── */
+.detail-panel {
+  display:none; grid-column:1 / -1;
+  background:rgba(0,0,0,0.35); border-top:2px solid rgba(255,204,68,0.25);
+  padding:22px; min-width:1360px;
+}
+.detail-panel.show { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:12px; }
+.detail-card {
+  background:rgba(255,255,255,0.03); border:2px solid rgba(255,204,68,0.25); border-radius:14px;
+  padding:16px 18px;
+}
+.detail-card-title {
+  font-family:'Orbitron',sans-serif; font-size:13px; letter-spacing:1px; color:#ffb41e;
+  margin-bottom:12px;
+}
+.detail-content-row {
+  display:flex; align-items:center; justify-content:space-between;
+  font-family:'Jua',sans-serif; font-size:15px; color:rgba(255,255,255,0.8);
+  padding:6px 0; border-top:1px solid rgba(255,255,255,0.06);
+}
+.detail-content-row:first-of-type { border-top:none; }
+.detail-content-name { display:flex; align-items:center; gap:6px; }
+.detail-dot { width:8px; height:8px; flex-shrink:0; }
+.wrong-q-tag {
+  font-family:'JetBrains Mono',monospace; font-size:12px; color:#ffb41e;
+  background:rgba(255,180,30,0.12); border:1px solid rgba(255,180,30,0.4); border-radius:6px;
+  padding:2px 8px; margin-left:4px;
+}
+
+@media (max-width:760px) {
+  .table-wrap { overflow-x:auto; }
+}
+</style>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBtx1kzYEH2Z--dSbTz6Eld2g6ZzWGnlYc",
+    authDomain: "equation-lab-teacher.firebaseapp.com",
+    projectId: "equation-lab-teacher",
+    storageBucket: "equation-lab-teacher.firebasestorage.app",
+    messagingSenderId: "498077230441",
+    appId: "1:498077230441:web:bc7e1e067ec81a6e5e89f8"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // 다른(비-module) 스크립트에서 쓸 수 있도록 window에 노출
+  window.fbDb = db;
+  window.fbDoc = doc;
+  window.fbSetDoc = setDoc;
+  window.fbGetDoc = getDoc;
+  window.fbUpdateDoc = updateDoc;
+  window.fbArrayUnion = arrayUnion;
+  window.fbCollection = collection;
+  window.fbGetDocs = getDocs;
+  window.fbDeleteDoc = deleteDoc;
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+</head>
+<body>
+
+<!-- 비밀번호 게이트 -->
+<div id="pw-gate" style="position:fixed; inset:0; z-index:1000; display:flex;
+  align-items:center; justify-content:center; background:#0a0612;">
+  <div style="background:#150c00; border:3px solid #ffcc44;
+    box-shadow:0 0 50px rgba(255,180,30,0.3), 6px 6px 0 rgba(0,0,0,0.5);
+    padding:36px 40px; width:min(360px,88vw); text-align:center; border-radius:20px;">
+    <div style="font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; letter-spacing:4px;
+      color:#a855f7; text-transform:uppercase; margin-bottom:10px;">삼차방정식 연구소</div>
+    <div style="font-family:'Orbitron',sans-serif; font-weight:900; font-size:20px; color:#fff;
+      letter-spacing:1px; margin-bottom:22px;">연구소 관제실</div>
+    <input id="pw-input" type="password" placeholder="비밀번호" autocomplete="off" autofocus style="
+      width:100%; padding:12px 14px; margin-bottom:14px; text-align:center;
+      background:rgba(0,0,0,0.5); border:2px solid rgba(255,180,30,0.5); color:#fff; border-radius:10px;
+      font-family:'JetBrains Mono',monospace; font-size:16px; letter-spacing:4px; outline:none;">
+    <button onclick="checkPassword()" style="
+      width:100%; font-family:'Orbitron',sans-serif; font-size:12px; font-weight:700; letter-spacing:2px;
+      padding:12px; background:linear-gradient(135deg,#ffcc44,#ffb41e); color:#150c00; border:none;
+      cursor:pointer; text-transform:uppercase; box-shadow:3px 3px 0 rgba(0,0,0,0.4); border-radius:10px;">입장</button>
+    <div id="pw-error" style="color:#ff6b8a; font-family:'Jua',sans-serif; font-size:13px; margin-top:12px; min-height:18px;"></div>
+  </div>
+</div>
+
+<script>
+  const TEACHER_PASSWORD = '0811';
+  function checkPassword() {
+    const val = document.getElementById('pw-input').value;
+    if (val === TEACHER_PASSWORD) {
+      try { sessionStorage.setItem('teacherUnlocked', '1'); } catch(e) {}
+      document.getElementById('pw-gate').style.display = 'none';
+    } else {
+      document.getElementById('pw-error').textContent = '비밀번호가 틀렸습니다.';
+      document.getElementById('pw-input').value = '';
+      document.getElementById('pw-input').focus();
+    }
+  }
+  document.getElementById('pw-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') checkPassword();
+  });
+  // 같은 브라우저 세션에서는 다시 안 물어봄
+  try {
+    if (sessionStorage.getItem('teacherUnlocked') === '1') {
+      document.getElementById('pw-gate').style.display = 'none';
+    }
+  } catch(e) {}
+</script>
+
+<div class="wrap">
+
+  <header>
+    <div class="header-eyebrow">삼차방정식 연구소</div>
+    <h1>연구소 관제실</h1>
+    <div class="header-sub">학생별 STAGE 1~5의 공식배우기 · 예제학습 · 보스배틀 완료 여부를 확인하세요.</div>
+    <div class="mock-banner" id="status-banner">
+      🔄 Firebase에서 학생 데이터를 불러오는 중...
+    </div>
+    <button id="refresh-btn" onclick="loadStudents()" style="margin-top:14px;
+      font-family:'Orbitron',sans-serif; font-size:12px; font-weight:700; letter-spacing:2px;
+      padding:10px 20px; background:transparent; color:#ffcc44; border:2px solid #ffcc44; border-radius:10px;
+      cursor:pointer; text-transform:uppercase;">↻ 새로고침</button>
+  </header>
+
+  <div class="summary-row" id="summary-row"></div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:#7fff00;"></span> 완료 (틀린 문항 없음)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#ffb41e;"></span> 완료 (틀린 문항 있음)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:rgba(255,255,255,0.2);"></span> 미완료</div>
+  </div>
+
+  <div class="toolbar" style="display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
+    <button id="delete-selected-btn" onclick="deleteSelected()" disabled style="
+      font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px;
+      padding:9px 18px; background:transparent; color:#ff6b8a; border:2px solid #ff6b8a; border-radius:10px;
+      cursor:pointer; text-transform:uppercase; opacity:0.4;">선택 삭제 (0)</button>
+    <button onclick="deleteAllStudents()" style="
+      font-family:'Orbitron',sans-serif; font-size:11px; font-weight:700; letter-spacing:2px;
+      padding:9px 18px; background:transparent; color:#ff3860; border:2px solid #ff3860; border-radius:10px;
+      cursor:pointer; text-transform:uppercase;">전체 삭제</button>
+  </div>
+
+  <div class="table-wrap">
+    <div class="t-head">
+      <div></div>
+      <div>#</div><div>이름</div>
+      <div class="stage-col">STAGE1</div><div class="stage-col">STAGE2</div>
+      <div class="stage-col">STAGE3</div><div class="stage-col">STAGE4</div><div class="stage-col">STAGE5</div>
+      <div style="text-align:right;">완료</div><div></div>
+    </div>
+    <div id="student-list"></div>
+  </div>
+
+</div>
+
+<script>
+/* ══════════════════════════════════
+   실데이터: Firebase에서 학생 목록을 불러옴
+   스키마: 스테이지당 { formula:{completed, wrongQuestions}, example:{completed}, boss:{completed} }
+════════════════════════════════════ */
+function emptyStage() {
+  return { formula:{completed:false, wrongQuestions:[]}, example:{completed:false}, boss:{completed:false} };
+}
+
+let MOCK_STUDENTS = []; // 실데이터가 담기는 배열 (변수명은 기존 렌더 함수와의 호환을 위해 유지)
+
+async function loadStudents() {
+  const banner = document.getElementById('status-banner');
+  if (!window.fbDb) {
+    banner.textContent = '⚠ Firebase 연결 대기 중... 잠시 후 새로고침 버튼을 눌러주세요.';
+    return;
+  }
+  banner.textContent = '🔄 학생 데이터를 불러오는 중...';
+  try {
+    const snap = await window.fbGetDocs(window.fbCollection(window.fbDb, 'students'));
+    const students = [];
+    snap.forEach(docSnap => {
+      const data = docSnap.data();
+      const stages = {};
+      STAGE_KEYS.forEach(k => {
+        const s = data[k] || {};
+        stages[k] = {
+          formula: { completed: !!(s.formula && s.formula.completed), wrongQuestions: (s.formula && s.formula.wrongQuestions) || [] },
+          example: { completed: !!(s.example && s.example.completed) },
+          boss: { completed: !!(s.boss && s.boss.completed) },
+        };
+      });
+      students.push({ name: docSnap.id, stages });
+    });
+    students.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+    MOCK_STUDENTS = students;
+    banner.textContent = students.length
+      ? `✅ 학생 ${students.length}명의 데이터를 불러왔습니다. (수동 새로고침 필요 — 자동 갱신 아님)`
+      : '학생 데이터가 아직 없습니다. 학생이 인트로에서 이름을 입력하면 여기 나타나요.';
+    renderSummary();
+    renderStudents();
+  } catch (e) {
+    banner.textContent = '⚠ 데이터를 불러오지 못했습니다: ' + e.message;
+    console.error(e);
+  }
+}
+
+const STAGE_KEYS = ['stage1','stage2','stage3','stage4','stage5'];
+const CONTENT_LABELS = { formula:'공식배우기', example:'예제학습', boss:'보스배틀' };
+const CONTENT_KEYS = ['formula','example','boss'];
+
+// 스테이지 완료 여부: 세 콘텐츠 전부 완료해야 완료로 침
+function isStageDone(stage) {
+  return stage.formula.completed && stage.example.completed && stage.boss.completed;
+}
+// 스테이지 상태: incomplete(미완료) / issue(완료+공식배우기 오답 있음) / clean(완전 깨끗)
+function stageState(stage) {
+  if (!isStageDone(stage)) return 'incomplete';
+  if (stage.formula.wrongQuestions.length > 0) return 'issue';
+  return 'clean';
+}
+function miniState(content, key) {
+  if (!content.completed) return 'incomplete';
+  if (key === 'formula' && content.wrongQuestions.length > 0) return 'issue';
+  return 'clean';
+}
+function miniLabel(key) {
+  return key === 'formula' ? '공식' : key === 'example' ? '예제' : '보스';
+}
+
+let activeFilter = 'all'; // 'all' | 'complete' | 'incomplete'
+
+function hasIncompleteStage(st) {
+  return STAGE_KEYS.some(k => !isStageDone(st.stages[k]));
+}
+
+function renderSummary() {
+  const total = MOCK_STUDENTS.length;
+  const fullClear = MOCK_STUDENTS.filter(st => STAGE_KEYS.every(k => isStageDone(st.stages[k]))).length;
+  const hasIncomplete = MOCK_STUDENTS.filter(hasIncompleteStage).length;
+
+  const cards = [
+    { num: total, label:'전체 학생 수', color:'#fff', filter:'all' },
+    { num: fullClear, label:'STAGE 모두 완료', color:'#7fff00', filter:'complete' },
+    { num: hasIncomplete, label:'미완료 STAGE 있음', color:'#ffb41e', filter:'incomplete' },
+  ];
+  document.getElementById('summary-row').innerHTML = cards.map(c => `
+    <div class="summary-card ${activeFilter===c.filter?'active':''}" onclick="setFilter('${c.filter}')">
+      <div class="summary-num" style="color:${c.color};">${c.num}</div>
+      <div class="summary-label">${c.label}</div>
+    </div>
+  `).join('');
+}
+
+function setFilter(f) {
+  activeFilter = (activeFilter === f) ? 'all' : f;
+  renderSummary();
+  renderStudents();
+}
+
+function renderStudents() {
+  const listEl = document.getElementById('student-list');
+  const filtered = MOCK_STUDENTS.filter(st => {
+    if (activeFilter === 'complete') return STAGE_KEYS.every(k => isStageDone(st.stages[k]));
+    if (activeFilter === 'incomplete') return hasIncompleteStage(st);
+    return true;
+  });
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div style="padding:24px; font-family:'Jua',sans-serif; color:rgba(255,255,255,0.5); text-align:center;">해당하는 학생이 없습니다.</div>`;
+    onSelectChange();
+    return;
+  }
+  listEl.innerHTML = filtered.map((st, i) => {
+    const clearedCount = STAGE_KEYS.filter(k => isStageDone(st.stages[k])).length;
+
+    const chipsHtml = STAGE_KEYS.map(k => {
+      const stage = st.stages[k];
+      const mini = CONTENT_KEYS.map(ck => {
+        const state = miniState(stage[ck], ck);
+        return `<div class="mini-badge ${state}" title="${CONTENT_LABELS[ck]}">${miniLabel(ck)}</div>`;
+      }).join('');
+      return `<div class="stage-chip">${mini}</div>`;
+    }).join('');
+
+    const detailHtml = STAGE_KEYS.map((k, si) => {
+      const stage = st.stages[k];
+      const rows = CONTENT_KEYS.map(ck => {
+        const c = stage[ck];
+        const state = miniState(c, ck);
+        const dotColor = state==='clean' ? '#7fff00' : state==='issue' ? '#ffb41e' : 'rgba(255,255,255,0.3)';
+        const wrongTag = (ck==='formula' && c.wrongQuestions.length>0)
+          ? `<span class="wrong-q-tag">${c.wrongQuestions.map(n=>'Q'+n).join(', ')}</span>` : '';
+        return `
+          <div class="detail-content-row">
+            <span class="detail-content-name">
+              <span class="detail-dot" style="background:${dotColor};"></span>
+              ${CONTENT_LABELS[ck]}
+            </span>
+            <span>${c.completed ? '완료' : '미완료'} ${wrongTag}</span>
+          </div>
+        `;
+      }).join('');
+      return `
+        <div class="detail-card">
+          <div class="detail-card-title">STAGE ${si+1}</div>
+          ${rows}
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="student-row" data-idx="${i}" onclick="toggleDetail(${i})">
+        <div onclick="event.stopPropagation()">
+          <input type="checkbox" class="s-check" data-name="${st.name}" onchange="onSelectChange()" style="width:16px;height:16px;cursor:pointer;">
+        </div>
+        <div class="s-num">${i+1}</div>
+        <div class="s-name">${st.name}</div>
+        ${chipsHtml}
+        <div class="s-progress">${clearedCount}/5</div>
+        <div class="s-caret">▶</div>
+      </div>
+      <div class="detail-panel" id="detail-${i}">${detailHtml}</div>
+    `;
+  }).join('');
+  onSelectChange();
+}
+
+function toggleDetail(i) {
+  const row = document.querySelector(`.student-row[data-idx="${i}"]`);
+  const panel = document.getElementById(`detail-${i}`);
+  const isOpen = panel.classList.contains('show');
+  document.querySelectorAll('.detail-panel.show').forEach(p => p.classList.remove('show'));
+  document.querySelectorAll('.student-row.open').forEach(r => r.classList.remove('open'));
+  if (!isOpen) { panel.classList.add('show'); row.classList.add('open'); }
+}
+
+function onSelectChange() {
+  const checked = document.querySelectorAll('.s-check:checked');
+  const btn = document.getElementById('delete-selected-btn');
+  btn.textContent = `선택 삭제 (${checked.length})`;
+  btn.disabled = checked.length === 0;
+  btn.style.opacity = checked.length === 0 ? '0.4' : '1';
+}
+
+async function deleteSelected() {
+  const checked = [...document.querySelectorAll('.s-check:checked')].map(el => el.dataset.name);
+  if (checked.length === 0) return;
+  const ok = confirm(`선택한 학생 ${checked.length}명의 데이터를 삭제할까요?\n(${checked.join(', ')})\n이 작업은 되돌릴 수 없습니다.`);
+  if (!ok) return;
+  if (!window.fbDb) { alert('Firebase 연결이 아직 준비되지 않았어요.'); return; }
+  try {
+    for (const name of checked) {
+      await window.fbDeleteDoc(window.fbDoc(window.fbDb, 'students', name));
+    }
+    await loadStudents();
+  } catch (e) {
+    alert('삭제 중 오류가 발생했어요: ' + e.message);
+  }
+}
+
+async function deleteAllStudents() {
+  if (MOCK_STUDENTS.length === 0) { alert('삭제할 학생 데이터가 없습니다.'); return; }
+  const ok1 = confirm(`전체 학생 ${MOCK_STUDENTS.length}명의 데이터를 전부 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`);
+  if (!ok1) return;
+  const ok2 = confirm('정말로 전체 삭제하시겠어요? 한 번 더 확인합니다.');
+  if (!ok2) return;
+  if (!window.fbDb) { alert('Firebase 연결이 아직 준비되지 않았어요.'); return; }
+  try {
+    for (const st of MOCK_STUDENTS) {
+      await window.fbDeleteDoc(window.fbDoc(window.fbDb, 'students', st.name));
+    }
+    await loadStudents();
+  } catch (e) {
+    alert('삭제 중 오류가 발생했어요: ' + e.message);
+  }
+}
+
+renderSummary();
+renderStudents();
+
+// Firebase 모듈 로딩을 기다렸다가 실데이터를 불러옴 (너무 오래 걸리면 안내 메시지로 전환)
+if (window.fbDb) {
+  loadStudents();
+} else {
+  let firebaseArrived = false;
+  window.addEventListener('firebase-ready', () => { firebaseArrived = true; loadStudents(); }, { once: true });
+  setTimeout(() => {
+    if (!firebaseArrived) {
+      document.getElementById('status-banner').textContent =
+        '⚠ Firebase에 연결하지 못했어요. file://로 직접 열었다면 로컬 서버(http://)로 열어보세요. (F12 콘솔에서 에러 확인 가능)';
+    }
+  }, 5000);
+}
+</script>
+</body>
+</html>
