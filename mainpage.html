@@ -385,8 +385,7 @@ function tryEnterPortal() {
       if (portal.action === 'popup') {
         openGuidePopup();
       } else if (portal.enabled) {
-        fadeOutAudio(bgmMain, 500);
-        setTimeout(() => { window.location.href = portal.href; }, 500);
+        window.location.href = portal.href;
       } else {
         showToast(`${portal.label} · ${portal.sub} — 준비중입니다!`);
       }
@@ -739,18 +738,6 @@ loop();
 ════════════════════════════════════ */
 const bgmMain = new Audio('sound/sound_1.mp3');
 bgmMain.loop = true; bgmMain.volume = 0.5;
-
-function fadeOutAudio(audio, durationMs) {
-  const startVol = audio.volume;
-  const steps = 20;
-  const stepTime = durationMs / steps;
-  let i = 0;
-  const timer = setInterval(() => {
-    i++;
-    audio.volume = Math.max(0, startVol * (1 - i / steps));
-    if (i >= steps) { clearInterval(timer); audio.pause(); audio.volume = startVol; }
-  }, stepTime);
-}
 
 let musicMuted = false;
 let audioUnlocked = false;
