@@ -531,6 +531,44 @@ function toggleMusic() {
     if (btn) btn.classList.remove('muted');
   }
 }
+
+/* ════════════════════════════════════
+   백그라운드 이미지 미리 로딩
+   (인트로 보는 동안 mainpage/stage1~5 이미지를 몰래 캐시에 받아둠)
+════════════════════════════════════ */
+const PRELOAD_IMAGES = [
+  'image/background.png',
+  'image/boss_stage1.png',
+  'image/boss_stage2.png',
+  'image/boss_stage3.png',
+  'image/boss_stage4.png',
+  'image/boss_stage5.png',
+  'image/demon_portrait.png',
+  'image/intro_background.png',
+  'image/platform_1.png',
+  'image/platform_2.png',
+  'image/platform_3.png',
+  'image/platform_4.png',
+  'image/platform_5.png',
+  'image/player_portrait.png',
+  'image/sprite_sheet.png',
+  'image/stage1_bg.png',
+  'image/stage2_bg.png',
+  'image/stage3_bg.png',
+  'image/stage4_bg.png',
+  'image/stage5_bg.png',
+  'image/synthetic_1.png',
+  'image/synthetic_2.png',
+  'image/synthetic_3.png',
+  'image/synthetic_4.png',
+  'image/synthetic_5.png',
+  'image/synthetic_6.png',
+  'image/teacher.png',
+];
+PRELOAD_IMAGES.forEach(src => {
+  const img = new Image();
+  img.src = src; // 화면엔 안 보이지만 브라우저가 다운로드해서 캐시에 저장함
+});
 </script>
 </body>
 </html>
